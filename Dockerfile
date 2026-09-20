@@ -31,7 +31,10 @@ ENV HOST=0.0.0.0
 # rclone backs scheduled/on-demand backup and restore. unzip backs config
 # import (extracts only two named files from a small downloaded archive).
 # tini acts as PID 1 to reap zombie processes and forward signals properly.
-RUN apk add --no-cache git docker-cli docker-cli-compose unzip tini
+# gdu backs the on-demand Disk Usage Explorer (manual scan button, not
+# polled) - a parallel directory walker, since this is ext4/spinning HDDs,
+# not NTFS, so there is no WizTree-style MFT shortcut available.
+RUN apk add --no-cache git docker-cli docker-cli-compose unzip tini gdu
 
 # Install production dependencies only
 COPY server/package*.json ./server/

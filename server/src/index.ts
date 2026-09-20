@@ -25,6 +25,7 @@ import { SentinelService } from './services/sentinel.service.js';
 import { AppUpdateService } from './services/app-update.service.js';
 import { AiAgentsService } from './services/ai-agents.service.js';
 import { auditLogService } from './services/audit-log.service.js';
+import { DiskScanService } from './services/disk-scan.service.js';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -60,6 +61,7 @@ async function bootstrap() {
   const terminalService = new TerminalService();
   const appUpdateService = new AppUpdateService(notificationsService);
   const aiAgentsService = new AiAgentsService();
+  const diskScanService = new DiskScanService();
 
   let sentinelService: SentinelService | null = null;
 
@@ -573,6 +575,39 @@ async function bootstrap() {
 
   app.get('/api/ssh-targets', async () => {
     return { targets: terminalService.getTargetNames() };
+  });
+
+  // Disk Usage Explorer: manual, on-demand only (see disk-scan.service.ts) -
+  // never part of the polling snapshot loop.
+  app.get('/api/disk-scan/targets', async () => {
+    return { targets: diskScanService.getTargets() };
+  });
+
+  app.get('/api/disk-scan/:id/status', async (request) => {
+    const { id } = request.params as { id: string };
+    return diskScanService.getStatus(id);
+  });
+
+  app.post('/api/disk-scan/:id/start', async (request, reply) => {
+    const { id } = request.params as { id: string };
+    try {
+      const state = diskScanService.startScan(id);
+      auditLogService.log('storage', 'info', `Disk usage scan started: ${id}`, { actor: actorFor(request) });
+      return state;
+    } catch (err) {
+      reply.status(400);
+      return { status: 'error', error: err instanceof Error ? err.message : String(err) };
+    }
+  });
+
+  app.get('/api/disk-scan/:id/tree', async (request, reply) => {
+    const { id } = request.params as { id: string };
+    const tree = diskScanService.getTree(id);
+    if (!tree) {
+      reply.status(404);
+      return { error: 'No completed scan for this target yet' };
+    }
+    return tree;
   });
 
   app.get('/api/ai-agents/telemetry', async () => {

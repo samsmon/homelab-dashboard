@@ -31,6 +31,7 @@ const PAGES = [
   { path: '/sentinel', label: 'Sentinel' },
   { path: '/ai-agents', label: 'AI Agents' },
   { path: '/logs', label: 'Logs' },
+  { path: '/disk-usage', label: 'Disk usage' },
 ];
 
 export const CommandPalette: React.FC<CommandPaletteProps> = ({

@@ -17,6 +17,7 @@ import { GitProjectsPage } from './pages/GitProjectsPage.js';
 import { ProcessesPage } from './pages/ProcessesPage.js';
 import { AiAgentsPage } from './pages/AiAgentsPage.js';
 import { LogsPage } from './pages/LogsPage.js';
+import { DiskUsagePage } from './pages/DiskUsagePage.js';
 import { LegacyLayout } from './layouts/LegacyLayout.js';
 
 // Lazy-loaded: xterm.js is heavy and only needed by owners who use SSH.
@@ -117,6 +118,7 @@ function CockpitDashboard() {
       <Route path="sentinel" element={<SentinelPage sentinel={snapshot?.sentinel} />} />
       <Route path="ai-agents" element={<AiAgentsPage />} />
       <Route path="logs" element={<LogsPage />} />
+      <Route path="disk-usage" element={<DiskUsagePage />} />
       <Route path="git-projects" element={<GitProjectsPage snapshot={snapshot} onRefetch={refetch} />} />
       <Route path="terminal" element={
         <Suspense fallback={<p className="label font-mono text-[10.5px]">Loading terminal…</p>}>

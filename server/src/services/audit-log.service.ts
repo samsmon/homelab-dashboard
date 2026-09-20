@@ -17,7 +17,8 @@ export type AuditCategory =
   | 'backup'
   | 'config'
   | 'app-update'
-  | 'system';
+  | 'system'
+  | 'storage';
 
 export interface AuditLogEntry {
   id: string;

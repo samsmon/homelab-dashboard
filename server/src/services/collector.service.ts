@@ -6,7 +6,8 @@ import { TailscaleService } from './tailscale.service.js';
 import { SslService } from './ssl.service.js';
 import { PinsService } from './pins.service.js';
 import { GitProjectsService } from './git-projects.service.js';
-import { CockpitSnapshot, SentinelStatus, DockerHostSummary, AppVersionInfo } from '../types.js';
+import { CockpitSnapshot, SentinelStatus, DockerHostSummary, AppVersionInfo, StorageItem } from '../types.js';
+import { auditLogService } from './audit-log.service.js';
 import { config } from '../config.js';
 
 export class CollectorService {
@@ -24,6 +25,7 @@ export class CollectorService {
   private timer: NodeJS.Timeout | null = null;
   private lastSnapshot: CockpitSnapshot | null = null;
   private containerMonitoringExpiresAt = 0;
+  private lastStorageStateById: Map<string, { isDisconnected: boolean; smartStatus?: string; status: string }> = new Map();
 
   public isContainerMonitoringActive(): boolean {
     return Date.now() < this.containerMonitoringExpiresAt;
@@ -169,6 +171,7 @@ export class CollectorService {
     }
 
     const storageData = await this.systemService.getStorageMatrix(pveStorage);
+    this.logStorageTransitions(storageData);
 
     const selfTailscaleIp = tailscaleData.devices.find(d => d.isCurrentDevice)?.ipv4 || '100.110.20.15';
 
@@ -232,6 +235,49 @@ export class CollectorService {
 
     this.lastSnapshot = snapshot;
     return snapshot;
+  }
+
+  // Piggybacks on the existing 2s snapshot poll instead of running its own
+  // check - this only writes to the audit log on an actual state change
+  // (connect/disconnect, SMART flip, healthy/warning/critical crossing), so
+  // it costs nothing extra even though the poll itself runs continuously.
+  // This is what makes past incidents (e.g. hdd-music dropping mid-read)
+  // show up in Logs with a timestamp instead of only being visible live.
+  private logStorageTransitions(storage: StorageItem[]) {
+    for (const item of storage) {
+      const prev = this.lastStorageStateById.get(item.id);
+      const next = {
+        isDisconnected: Boolean(item.isDisconnected),
+        smartStatus: item.smartStatus,
+        status: item.status,
+      };
+      this.lastStorageStateById.set(item.id, next);
+      if (!prev) continue; // first observation this run, nothing to diff against
+
+      if (prev.isDisconnected !== next.isDisconnected) {
+        auditLogService.log(
+          'storage',
+          next.isDisconnected ? 'error' : 'info',
+          next.isDisconnected
+            ? `${item.label} (${item.mount}) dropped offline`
+            : `${item.label} (${item.mount}) reconnected`,
+          { detail: `usedPercent=${item.usedPercent}, smartStatus=${item.smartStatus ?? 'unknown'}` }
+        );
+      } else if (prev.smartStatus !== next.smartStatus && next.smartStatus && next.smartStatus !== 'UNKNOWN') {
+        auditLogService.log(
+          'storage',
+          next.smartStatus === 'PASSED' ? 'info' : 'warn',
+          `${item.label} (${item.mount}) SMART status changed: ${prev.smartStatus ?? 'unknown'} -> ${next.smartStatus}`
+        );
+      } else if (prev.status !== next.status && (next.status === 'critical' || prev.status === 'critical')) {
+        auditLogService.log(
+          'storage',
+          next.status === 'critical' ? 'error' : 'info',
+          `${item.label} (${item.mount}) health: ${prev.status} -> ${next.status}`,
+          { detail: `usedPercent=${item.usedPercent}` }
+        );
+      }
+    }
   }
 
   public getDockerServiceForContainer(id: string): DockerService | undefined {

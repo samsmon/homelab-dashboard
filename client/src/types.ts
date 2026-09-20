@@ -267,7 +267,8 @@ export type AuditCategory =
   | 'backup'
   | 'config'
   | 'app-update'
-  | 'system';
+  | 'system'
+  | 'storage';
 
 export interface AuditLogEntry {
   id: string;
@@ -437,4 +438,29 @@ export interface AiTelemetryResponse {
     completedAt?: string;
     durationSeconds?: number;
   }[];
+}
+
+export interface DiskScanTarget {
+  id: string;
+  mount: string;
+  label: string;
+  isExternal: boolean;
+}
+
+export interface DiskScanState {
+  status: 'idle' | 'running' | 'done' | 'error';
+  startedAt?: number;
+  scannedAt?: number;
+  elapsedMs?: number;
+  error?: string;
+  queuePosition?: number;
+}
+
+export interface DiskTreeNode {
+  name: string;
+  path: string;
+  sizeBytes: number;
+  type: 'dir' | 'file' | 'rollup';
+  fileCount: number;
+  children: DiskTreeNode[];
 }

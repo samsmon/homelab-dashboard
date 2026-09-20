@@ -17,6 +17,7 @@ const CATEGORIES: (AuditCategory | 'all')[] = [
   'config',
   'app-update',
   'system',
+  'storage',
 ];
 
 const LEVELS: (AuditLevel | 'all')[] = ['all', 'info', 'warn', 'error'];

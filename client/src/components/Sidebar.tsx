@@ -12,6 +12,7 @@ import {
   ChevronsLeft,
   ChevronsRight,
   ScrollText,
+  HardDrive,
 } from 'lucide-react';
 
 export const NAV_ROUTES = [
@@ -24,6 +25,7 @@ export const NAV_ROUTES = [
   { path: '/sentinel', label: 'Sentinel', icon: Bot },
   { path: '/ai-agents', label: 'AI Agents', icon: Sparkles },
   { path: '/logs', label: 'Logs', icon: ScrollText },
+  { path: '/disk-usage', label: 'Disk usage', icon: HardDrive },
 ];
 
 const STORAGE_KEY = 'cockpit-sidebar-collapsed';
