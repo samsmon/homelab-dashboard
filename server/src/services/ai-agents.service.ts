@@ -265,7 +265,7 @@ export class AiAgentsService {
       else if (key === 'antigravity_marmut') displayName = 'Gemini (Marmut)';
 
       const provider = cache.driver || (key.includes('claude') ? 'claude' : 'antigravity');
-      const fallbackEmail = registeredAgents.get('claudeAgent')?.auth?.email || 'suryatmaja.dev@gmail.com';
+      const fallbackEmail = registeredAgents.get('claudeAgent')?.auth?.email || 'unknown';
       let account = cache.auth?.email;
       if (!account) {
         if (key.startsWith('antigravity') || cache.auth?.label === 'Google account') {

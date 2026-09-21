@@ -6,6 +6,17 @@ This file tracks the activities of all AI agents (Gemini, Claude, etc.) operatin
 ---
 
 ### [2026-09-21 UTC]
+**Agent:** Claude (Feature: real SSL cert checks; fix: hardcoded values in Sentinel bot)
+**Status:** `[COMPLETED]`
+**Activities Completed:**
+- **SSL certificates panel now does a real TLS handshake instead of returning fabricated data:** a full audit of the rest of `server/src` (owner-requested, following the Fase 1-3 accuracy/perf work) found `SslService.getCertificates()` returned six entirely invented certificates (fake domains, issuers, expiry dates) on every single 2s poll tick — the panel had never done any real certificate inspection. Rewrote it to open a real `tls.connect()` per domain in `config.sslDomains` (new `SSL_DOMAINS` env var, `.env.example` documented: `host[:port][=Label]`, comma-separated) and read `getPeerCertificate()`'s actual `valid_to`. Follows the same cache-and-throttle shape as `GitProjectsService`'s GitHub polling (`SSL_CHECK_INTERVAL_MS`, default 6h) instead of running on the hot 2s tick, since a TLS handshake is real external I/O. `rejectUnauthorized: false` is intentional — a homelab-internal cert (self-signed or internal CA) still has a real expiry worth tracking, we're not doing trust validation. A domain that can't be reached now shows a distinct "(unreachable: ...)" status instead of a fabricated-but-plausible reading. Demo mode keeps its own clearly-fake sample data (`getSimulatedCertificates`); with no domains configured, the panel now returns an empty list (client already renders an empty state) instead of six lies.
+- **`SentinelService` (Telegram bot) had hardcoded owner IPs/hardware baked into its output, found in the same audit:** `/help`'s hardware line and the Gemini system prompt both had a literal `"Lenovo ThinkCentre M710q Tiny (i5-7500 / 32GB RAM)"`, `"192.168.18.224"`/`"192.168.18.225"` IPs, and a hardcoded storage-mount list — the exact pattern CLAUDE.md's "never hardcode this owner's hardware" note already covers, just in a file that note's original incident didn't touch. Both now derive from `getLatestSnapshot()` (cpuModel/cpuCores/ramTotalBytes/ip, already real per-tick telemetry) and `config.storageMounts`, falling back to a plain "not yet available" string before the first snapshot exists rather than a fabricated one. Also removed two fake sensor fallbacks (`pve.cpuTempCelsius || 48`, `fanSpeedPercent || 35`) that would silently report invented readings if the real value were ever falsy — now shown as `n/a` instead.
+- **Two smaller hardcodes from the same audit:** `config.ts`'s default `PROXMOX_URL` fallback (used only when the env var is unset) was this owner's literal IP; changed to a generic `pve.local` placeholder. `ai-agents.service.ts`'s email display fallback was a literal personal email address; changed to `'unknown'`.
+- **Verification:** `cd server && npx tsc` clean.
+
+---
+
+### [2026-09-21 UTC]
 **Agent:** Claude (Fix: duplicate Proxmox API calls, unbounded canary readdir, hardcoded Proxmox IP)
 **Status:** `[COMPLETED]`
 **Activities Completed:**

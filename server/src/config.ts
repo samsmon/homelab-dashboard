@@ -25,6 +25,28 @@ function parseDockerHosts(raw: string | undefined): DockerHostConfig[] {
     .filter((host) => host.name && host.url);
 }
 
+export interface SslDomainConfig {
+  host: string;
+  port: number;
+  label: string;
+}
+
+// "host[:port][=Label]", comma-separated. Port defaults to 443; label defaults
+// to the host itself when omitted. e.g. "jellyfin.example.com=Jellyfin,cloud.example.com:8443"
+function parseSslDomains(raw: string | undefined): SslDomainConfig[] {
+  if (!raw) return [];
+  return raw
+    .split(',')
+    .map((entry) => entry.trim())
+    .filter(Boolean)
+    .map((entry) => {
+      const [hostPort, label] = entry.split('=').map((s) => s.trim());
+      const [host, portStr] = hostPort.split(':');
+      return { host, port: portStr ? parseInt(portStr, 10) : 443, label: label || host };
+    })
+    .filter((d) => Boolean(d.host));
+}
+
 export interface SshTargetConfig {
   name: string;
   user: string;
@@ -63,7 +85,7 @@ export const config = {
   dockerSocket: primaryDockerHost.socketPath!,
   dockerHosts: [primaryDockerHost, ...parseDockerHosts(process.env.DOCKER_HOSTS)] as DockerHostConfig[],
   proxmox: {
-    url: process.env.PROXMOX_URL || 'https://192.168.18.224:8006',
+    url: process.env.PROXMOX_URL || 'https://pve.local:8006',
     node: process.env.PROXMOX_NODE || 'pve',
     tokenId: process.env.PROXMOX_TOKEN_ID || '', // e.g. root@pam!cockpit
     tokenSecret: process.env.PROXMOX_TOKEN_SECRET || '',
@@ -84,6 +106,11 @@ export const config = {
   storageLabels: (process.env.STORAGE_LABELS || '')
     .split(',')
     .map(label => label.trim()),
+  sslDomains: parseSslDomains(process.env.SSL_DOMAINS),
+  // Cert expiry doesn't change minute to minute; a real TLS handshake per
+  // configured domain follows the same cache-and-throttle rule as the GitHub
+  // check below rather than running on the 2s poll tick.
+  sslCheckIntervalMs: parseInt(process.env.SSL_CHECK_INTERVAL_MS || '21600000', 10), // 6h
   githubToken: process.env.GITHUB_TOKEN || '',
   // How often to actually call the GitHub API per registered project, not
   // the dashboard's own poll rate — checking every 2s would exhaust GitHub's

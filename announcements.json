@@ -1,5 +1,17 @@
 [
   {
+    "id": "2026-09-21-feat-real-ssl-checks",
+    "version": "1.5.0",
+    "title": "Real SSL Certificate Checks, Sentinel Bot Hardcode Cleanup",
+    "date": "2026-09-21",
+    "description": "The SSL certificates panel now performs a real TLS handshake against each configured domain instead of showing six invented sample certificates, and the Telegram Sentinel bot no longer bakes this owner's specific hardware and IPs into its replies.",
+    "highlights": [
+      "New SSL_DOMAINS env var: list the domains to track (host[:port][=Label]) and the panel checks their actual certificate expiry, cached and re-checked on SSL_CHECK_INTERVAL_MS (default 6h) rather than fabricating data.",
+      "An unreachable domain shows clearly as unreachable instead of a plausible-looking fake reading; demo mode keeps its own sample data.",
+      "Sentinel bot: hardware/IP/storage details in /help and the Gemini assistant context now come from live telemetry and config instead of hardcoded strings."
+    ]
+  },
+  {
     "id": "2026-09-21-perf-delta-websocket-broadcast",
     "version": "1.4.3",
     "title": "Perf: Delta-Only WebSocket Broadcast",

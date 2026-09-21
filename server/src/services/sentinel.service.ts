@@ -193,9 +193,14 @@ export class SentinelService {
   }
 
   private async sendHelp(chatId: number) {
+    const pve = this.getLatestSnapshot()?.host.pve;
+    const hardwareLine = pve
+      ? `_Hardware: ${pve.cpuModel} (${pve.cpuCores} cores), ${formatBytes(pve.ramTotalBytes)} RAM_`
+      : `_Hardware: telemetry not yet available_`;
+
     const msg = [
       `🛡️ *Homelab Sentinel — Mobile Operator Bot*`,
-      `_Hardware: Lenovo ThinkCentre M710q Tiny (i5-7500 / 32GB RAM)_`,
+      hardwareLine,
       ``,
       `*Tier 1 (Read-Only Telemetry)*`,
       `• /status — Host CPU, RAM, Proxmox, and containers`,
@@ -233,11 +238,11 @@ export class SentinelService {
       `📊 *Homelab Status Snapshot*`,
       `--------------------------------`,
       `🖥️ *Proxmox Node (${pve.nodeName})*: \`${pve.ip}\``,
-      `  • CPU: *${pve.cpuPercent.toFixed(1)}%* (${pve.cpuTempCelsius || 48}°C)`,
+      `  • CPU: *${pve.cpuPercent.toFixed(1)}%* (${pve.cpuTempCelsius !== undefined ? `${pve.cpuTempCelsius.toFixed(1)}°C` : 'n/a'})`,
       `  • RAM: *${formatBytes(pve.ramUsedBytes)}* / *${formatBytes(pve.ramTotalBytes)}* (${pve.ramPercent.toFixed(1)}%)`,
       ``,
       `📦 *Docker Runner LXC (${lxc.hostname})*: \`${lxc.ip}\``,
-      `  • CPU: *${lxc.cpuPercent.toFixed(1)}%* | Fan: *${lxc.thermalThrottle?.fanSpeedPercent || 35}%*`,
+      `  • CPU: *${lxc.cpuPercent.toFixed(1)}%* | Fan: *${lxc.thermalThrottle?.fanSpeedPercent !== undefined ? `${lxc.thermalThrottle.fanSpeedPercent}%` : 'n/a'}*`,
       `  • Active Containers: *${runningContainers}* / *${totalContainers}* running`,
       ``,
       `🛡️ *DAS External Canary Check*: ${canaryOk ? '🟢 *CANARY OK (All Mounts Stable)*' : '🔴 *WARNING: DAS Mount Lost!*'}`,
@@ -399,13 +404,20 @@ export class SentinelService {
     }
 
     const snap = this.getLatestSnapshot();
+    const pve = snap?.host.pve;
+    const lxc = snap?.host.dockerHost;
+    const selfTailscaleIp = snap?.tailscale.devices.find(d => d.isCurrentDevice)?.ipv4;
+    const hardwareLine = pve
+      ? `Host: ${pve.cpuModel} (${pve.cpuCores} cores), ${formatBytes(pve.ramTotalBytes)} RAM.`
+      : 'Host hardware: telemetry not yet available.';
+
     const systemContext = `
 You are Homelab Sentinel, an intelligent AI operational assistant for a self-hosted homelab.
-Host: Lenovo ThinkCentre M710q Tiny (Intel i5-7500 4C/4T, 32GB RAM).
-Hypervisor: Proxmox VE (192.168.18.224).
-Container Host: Ubuntu LXC (192.168.18.225) with Docker.
-Storage: Internal NVMe root SSD + External 3-Bay DAS (/mnt/hdd-media, /mnt/hdd-cloud, /mnt/hdd-music).
-Network: Tailscale mesh (100.110.20.15).
+${hardwareLine}
+Hypervisor: Proxmox VE${pve?.ip ? ` (${pve.ip})` : ''}.
+Container Host: ${lxc?.hostname || 'Docker host'}${lxc?.ip ? ` (${lxc.ip})` : ''} with Docker.
+Storage: ${config.storageMounts.join(', ')}.
+Network: Tailscale mesh${selfTailscaleIp ? ` (${selfTailscaleIp})` : ''}.
 
 Current Telemetry Snapshot:
 ${JSON.stringify({
