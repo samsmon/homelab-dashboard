@@ -1,5 +1,16 @@
 [
   {
+    "id": "2026-09-21-perf-delta-websocket-broadcast",
+    "version": "1.4.3",
+    "title": "Perf: Delta-Only WebSocket Broadcast",
+    "date": "2026-09-21",
+    "description": "The live dashboard feed now sends only the parts of the snapshot that actually changed since the previous 2-second tick instead of the entire snapshot every time, cutting payload size and serialization work on sections like SSL certificates and Git projects that rarely change.",
+    "highlights": [
+      "Periodic WebSocket updates now carry only changed top-level snapshot sections; a newly connected browser still always gets the full snapshot first.",
+      "No visible behavior change — this is a transport-level optimization, the dashboard still updates every 2 seconds."
+    ]
+  },
+  {
     "id": "2026-09-21-perf-docker-stats-streaming",
     "version": "1.4.2",
     "title": "Perf: Docker Stats Streaming, Cheaper Thermal Read",

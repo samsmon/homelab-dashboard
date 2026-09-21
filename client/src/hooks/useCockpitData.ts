@@ -60,6 +60,12 @@ export function useCockpitData() {
         if (message.type === 'SNAPSHOT' && message.data) {
           setSnapshot(message.data);
           setLastUpdated(new Date());
+        } else if (message.type === 'SNAPSHOT_DELTA' && message.data) {
+          // Server only sends the top-level keys that changed since its last tick;
+          // merge onto the existing snapshot rather than replacing it. If we somehow
+          // don't have a base snapshot yet, drop it — a full one is always sent first.
+          setSnapshot(prev => (prev ? { ...prev, ...message.data } : prev));
+          setLastUpdated(new Date());
         }
       } catch (err) {
         console.error('[useCockpitData] Parse error:', err);

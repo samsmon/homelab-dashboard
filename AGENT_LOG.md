@@ -28,8 +28,15 @@ This file tracks the activities of all AI agents (Gemini, Claude, etc.) operatin
 
 ---
 
-### [2026-09-18 UTC]
-**Agent:** Claude (Feature: remote pull & rebuild for git projects via SSH target)
+### [2026-09-21 UTC]
+**Agent:** Claude (Perf: delta-only WebSocket broadcast — Fase 3 of Beszel benchmark)
+**Status:** `[COMPLETED]`
+**Activities Completed:**
+- **Periodic broadcasts now send only changed top-level snapshot keys:** `CollectorService.buildDeltaPayload()` compares each top-level `CockpitSnapshot` key (via `JSON.stringify` equality) against the previous tick's snapshot and includes only the ones that differ, wrapped in a new `SNAPSHOT_DELTA` message type. `sslCertificates`, `gitProjects`, `dockerHygiene` (cached 5 min), `sentinel`, and `appVersion` typically don't change every 2s tick and are now skipped entirely rather than re-serialized and re-sent every time; `host`/`storage`/`containers` still change most ticks and are still sent, same as before.
+- **A newly connecting client always gets a full `SNAPSHOT` first, never a delta:** `addClient()` now explicitly sends `this.lastSnapshot` (forcing a fresh `collect()` first if polling was paused or none exists yet) instead of relying on the shared `collectAndBroadcast()` call to reach it — that call may now produce a delta if `this.lastSnapshot` was already non-null (e.g. from the boot-time initial collect), which a brand-new client has no base to apply against.
+- **Client merges deltas instead of replacing state:** `useCockpitData.ts` handles `SNAPSHOT_DELTA` by spreading the partial payload onto the existing `snapshot` state; a `SNAPSHOT` message still fully replaces it as before. A delta arriving with no existing snapshot (shouldn't happen given the ordering guarantee above) is dropped rather than crashing.
+- **Scope note:** the owner's original Fase 3 ask also included Beszel-style aggregated historical retention (1m/10m/2h); scoped that out at their explicit choice since it would add a storage subsystem this repo's CLAUDE.md deliberately doesn't have ("No database beyond small JSON files... no external monitoring stack").
+- **Verification:** `cd server && npx tsc` clean; `cd client && npx vite build` clean (1632 modules). `npx tsc -b` still fails on the two pre-existing CSS side-effect import errors (`TerminalView.tsx`, `main.tsx`) already confirmed present on `main` before any of this session's changes — unrelated. No UI click-through performed per repo convention.
 **Status:** `[COMPLETED]`
 **Activities Completed:**
 - **`GitProjectRecord.sshTarget`:** optional, names an entry in `config.sshTargets` (the same list Terminal and remote Processes already use). Plumbed through `register()`, `getSnapshot()`, and validated server-side in the `POST /api/git-projects/:containerName` route against `terminalService.getTargetNames()` before it's stored.

@@ -95,14 +95,25 @@ export class CollectorService {
 
   public addClient(ws: WebSocket) {
     this.wsClients.add(ws);
+    const isFirstClient = this.wsClients.size === 1;
 
-    // If this is the first client connected, start polling and broadcast immediately
-    if (this.wsClients.size === 1) {
+    if (isFirstClient) {
       this.startTimer();
-      this.collectAndBroadcast();
-    } else if (this.lastSnapshot) {
-      ws.send(JSON.stringify({ type: 'SNAPSHOT', data: this.lastSnapshot }));
     }
+
+    // A newly connecting client always gets a full snapshot, never a delta —
+    // collectAndBroadcast()'s periodic ticks assume every connected client's
+    // state already matches this.lastSnapshot from before that tick, which is
+    // only true once this send has happened.
+    (async () => {
+      if (isFirstClient || !this.lastSnapshot) {
+        // Polling was paused (no prior clients) or hasn't produced a snapshot yet.
+        await this.collect();
+      }
+      if (this.lastSnapshot && ws.readyState === 1) {
+        ws.send(JSON.stringify({ type: 'SNAPSHOT', data: this.lastSnapshot }));
+      }
+    })();
 
     ws.on('close', () => {
       this.wsClients.delete(ws);
@@ -219,9 +230,16 @@ export class CollectorService {
 
   public async collectAndBroadcast() {
     try {
+      const previous = this.lastSnapshot;
       const snapshot = await this.collect();
       if (this.wsClients.size > 0) {
-        const message = JSON.stringify({ type: 'SNAPSHOT', data: snapshot });
+        // Every connected client's local state already equals `previous` (they either
+        // just got it as a full snapshot on connect, or have been applying deltas
+        // since one) — sending only the top-level keys that actually changed avoids
+        // re-serializing and re-transmitting sections like sslCertificates or
+        // gitProjects that don't change on every 2s tick.
+        const payload = previous ? this.buildDeltaPayload(previous, snapshot) : { type: 'SNAPSHOT', data: snapshot };
+        const message = JSON.stringify(payload);
         for (const client of this.wsClients) {
           if (client.readyState === 1) { // OPEN
             client.send(message);
@@ -231,6 +249,17 @@ export class CollectorService {
     } catch (err) {
       console.error(`[CollectorService] Error during metrics collection:`, err);
     }
+  }
+
+  private buildDeltaPayload(previous: CockpitSnapshot, next: CockpitSnapshot): { type: string; data: Partial<CockpitSnapshot> } {
+    const data: Partial<CockpitSnapshot> = { timestamp: next.timestamp };
+    for (const key of Object.keys(next) as (keyof CockpitSnapshot)[]) {
+      if (key === 'timestamp') continue;
+      if (JSON.stringify(next[key]) !== JSON.stringify(previous[key])) {
+        (data as any)[key] = next[key];
+      }
+    }
+    return { type: 'SNAPSHOT_DELTA', data };
   }
 
   public getLastSnapshot(): CockpitSnapshot | null {
