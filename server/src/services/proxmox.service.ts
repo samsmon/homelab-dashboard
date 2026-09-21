@@ -14,6 +14,7 @@ if (config.proxmox.rejectUnauthorized === false) {
 
 export class ProxmoxService {
   private isConfigured: boolean;
+  private readonly hostIp: string;
 
   constructor() {
     this.isConfigured = Boolean(
@@ -21,18 +22,32 @@ export class ProxmoxService {
       config.proxmox.tokenSecret &&
       config.proxmox.url
     );
+    // Derived from the configured PROXMOX_URL, not a literal — this owner's
+    // original IP was hardcoded here regardless of what the env var actually
+    // pointed to (see CLAUDE.md's "never hardcode this owner's hardware" note).
+    try {
+      this.hostIp = config.proxmox.url ? new URL(config.proxmox.url).hostname : 'unknown';
+    } catch {
+      this.hostIp = 'unknown';
+    }
   }
 
-  public async getMetrics(localLxcRootUsage?: { used: number; total: number }): Promise<PveHostMetrics> {
+  public async getMetrics(
+    localLxcRootUsage?: { used: number; total: number },
+    storageVitalsPromise?: Promise<PveStorageVitals>
+  ): Promise<PveHostMetrics> {
     if (!this.isConfigured || config.demoMode) {
       return this.getSimulatedMetrics(localLxcRootUsage);
     }
 
     try {
+      // Callers that already need storage vitals separately (CollectorService)
+      // pass the in-flight promise so /disks/list, /storage and /lxc are only
+      // ever requested once per tick, not once here and once more by the caller.
       const [nodeStatus, backupVitals, storageVitals] = await Promise.all([
         this.fetchNodeStatus(),
         this.fetchBackupVitals(),
-        this.getStorageVitals(localLxcRootUsage),
+        storageVitalsPromise ?? this.getStorageVitals(localLxcRootUsage),
       ]);
 
       const cpuPercent = Number(((nodeStatus.cpu || 0) * 100).toFixed(1));
@@ -49,7 +64,7 @@ export class ProxmoxService {
       return {
         connected: true,
         nodeName: config.proxmox.node,
-        ip: '192.168.18.224',
+        ip: this.hostIp,
         cpuPercent,
         cpuCores: nodeStatus.cpuinfo?.cpus || 4,
         cpuModel: nodeStatus.cpuinfo?.model || 'Intel Core i5-7500 @ 3.40GHz',

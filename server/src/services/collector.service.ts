@@ -149,11 +149,15 @@ export class CollectorService {
     const localRootStats = this.systemService.safeStatfs('/');
     const rootUsage = localRootStats ? { used: localRootStats.used, total: localRootStats.total } : undefined;
 
+    // Shared between getMetrics() and the direct pveStorage assignment below so
+    // /disks/list, /storage and /lxc are only requested once per tick instead of twice.
+    const storageVitalsPromise = this.proxmoxService.getStorageVitals(rootUsage);
+
     const [pveMetrics, dockerHostMetrics, tailscaleData, pveStorage, sslCerts, diskHygiene] = await Promise.all([
-      this.proxmoxService.getMetrics(rootUsage),
+      this.proxmoxService.getMetrics(rootUsage, storageVitalsPromise),
       this.systemService.getDockerHostMetrics(),
       this.tailscaleService.getStatus(),
-      this.proxmoxService.getStorageVitals(rootUsage),
+      storageVitalsPromise,
       this.sslService.getCertificates(),
       this.dockerServices[0].getDiskHygiene(),
     ]);

@@ -544,12 +544,24 @@ export class SystemService {
       .replace(/\b\w/g, c => c.toUpperCase());
   }
 
+  /**
+   * "Is this mount non-empty" without paying for a full directory listing every
+   * 2s tick — readdirSync() on a media library's top-level folder can mean
+   * reading and sorting thousands of entries on every poll if the owner hasn't
+   * created a `.mounted` marker file. opendirSync + one readSync() stops at the
+   * first entry instead.
+   */
   private checkCanaryFile(mountPath: string): boolean {
     try {
       const canaryPath = `${mountPath}/.mounted`;
       if (fs.existsSync(canaryPath)) return true;
-      const contents = fs.readdirSync(mountPath);
-      return contents.length > 0;
+
+      const dir = fs.opendirSync(mountPath);
+      try {
+        return dir.readSync() !== null;
+      } finally {
+        dir.closeSync();
+      }
     } catch {
       return false;
     }
