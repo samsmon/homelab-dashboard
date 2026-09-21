@@ -475,7 +475,7 @@ export class DockerService {
     this.statsStreams.delete(id);
   }
 
-  private closeAllStatsStreams(): void {
+  public closeAllStatsStreams(): void {
     for (const id of this.statsStreams.keys()) {
       this.closeStatsStream(id);
     }

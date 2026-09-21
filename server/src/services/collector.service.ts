@@ -85,6 +85,14 @@ export class CollectorService {
     if (this.timer) {
       clearInterval(this.timer);
       this.timer = null;
+      // Docker stats streams (see DockerService.ensureStatsStream) are opened
+      // independently of the poll tick and would otherwise keep receiving data
+      // from the daemon indefinitely once nothing is left to close them — the
+      // tick-driven cleanup in fetchLiveContainers() only runs during a tick,
+      // which just stopped. They reopen on the next tick if monitoring is still active.
+      for (const service of this.dockerServices) {
+        service.closeAllStatsStreams();
+      }
       console.log(`[CollectorService] No active clients. Polling paused to save CPU.`);
     }
   }
