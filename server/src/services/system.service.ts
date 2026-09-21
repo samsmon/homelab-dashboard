@@ -22,6 +22,9 @@ export class SystemService {
   private diskPerfMap: Map<string, DiskPerfHistory> = new Map();
   private processIoMap: Map<number, { lastReadBytes: number; lastWriteBytes: number; lastTimestamp: number }> = new Map();
   private lastCpuTimes: { idle: number; total: number } | null = null;
+  private thermalZonePath: string | null | undefined = undefined;
+  private siFallbackTempCelsius: number | null = null;
+  private siFallbackCheckedAt = 0;
 
   public async getDockerHostMetrics(): Promise<DockerHostMetrics> {
     const cpus = os.cpus();
@@ -97,13 +100,15 @@ export class SystemService {
       // Fallback
     }
 
-    try {
-      const tempSensors = await si.cpuTemperature();
-      if (tempSensors.main && tempSensors.main > 0) {
-        packageTempCelsius = tempSensors.main;
-      }
-    } catch {
-      // Fallback
+    const directTemp = this.readCpuTemperatureDirect();
+    if (directTemp !== null) {
+      packageTempCelsius = directTemp;
+    } else {
+      // No usable /sys/class/thermal zone (rare, or a non-Linux dev machine) —
+      // si.cpuTemperature() shells out on some platforms, so it's only ever
+      // called as a fallback here, and throttled rather than run every tick.
+      const fallback = await this.readCpuTemperatureViaSiThrottled();
+      if (fallback !== null) packageTempCelsius = fallback;
     }
 
     try {
@@ -122,6 +127,55 @@ export class SystemService {
       packageTempCelsius,
       fanSpeedPercent,
     };
+  }
+
+  /**
+   * Reads CPU package temp straight from /sys/class/thermal, resolving and caching
+   * the right zone once instead of scanning every tick. Millidegree files (`temp`)
+   * are a plain integer read — no subprocess, no library overhead — unlike
+   * si.cpuTemperature() which probes multiple sensor backends on every call.
+   */
+  private readCpuTemperatureDirect(): number | null {
+    try {
+      if (this.thermalZonePath === undefined) {
+        this.thermalZonePath = null;
+        const base = '/sys/class/thermal';
+        if (fs.existsSync(base)) {
+          const zones = fs.readdirSync(base).filter(name => name.startsWith('thermal_zone'));
+          const preferred = zones.find(zone => {
+            try {
+              const type = fs.readFileSync(`${base}/${zone}/type`, 'utf8').trim().toLowerCase();
+              return type.includes('cpu') || type.includes('x86_pkg_temp') || type.includes('coretemp');
+            } catch {
+              return false;
+            }
+          });
+          const chosen = preferred || zones[0];
+          if (chosen) this.thermalZonePath = `${base}/${chosen}/temp`;
+        }
+      }
+
+      if (!this.thermalZonePath) return null;
+      const raw = parseInt(fs.readFileSync(this.thermalZonePath, 'utf8').trim(), 10);
+      if (!Number.isFinite(raw)) return null;
+      return raw / 1000;
+    } catch {
+      this.thermalZonePath = null;
+      return null;
+    }
+  }
+
+  private async readCpuTemperatureViaSiThrottled(): Promise<number | null> {
+    const now = Date.now();
+    if (now - this.siFallbackCheckedAt < 30000) return this.siFallbackTempCelsius;
+    this.siFallbackCheckedAt = now;
+    try {
+      const tempSensors = await si.cpuTemperature();
+      this.siFallbackTempCelsius = tempSensors.main && tempSensors.main > 0 ? tempSensors.main : null;
+    } catch {
+      this.siFallbackTempCelsius = null;
+    }
+    return this.siFallbackTempCelsius;
   }
 
   public async getStorageMatrix(pveStorage?: PveStorageVitals | null): Promise<StorageItem[]> {

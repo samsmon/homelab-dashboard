@@ -17,6 +17,17 @@ This file tracks the activities of all AI agents (Gemini, Claude, etc.) operatin
 
 ---
 
+### [2026-09-21 UTC]
+**Agent:** Claude (Perf: Docker stats streaming, cheaper thermal read — Fase 2 of Beszel benchmark)
+**Status:** `[COMPLETED]`
+**Activities Completed:**
+- **Docker container CPU/memory now come from a persistent stats stream, not N polls per tick:** `DockerService.ensureStatsStream()` opens one `container.stats({stream:true})` connection per running container (capped at 30, same as before) the first time it's seen while monitoring is active, and leaves it open — `fetchLiveContainers()` just reads whatever line the daemon pushed most recently (`statsStreams.get(id)?.latest`) instead of awaiting a fresh `stats({stream:false})` HTTP round-trip per container every 2s tick. A container that stops or drops out of the top-30 has its stream closed (`closeStatsStream`); turning monitoring off (`setMonitoringActive(false)`) closes all of them immediately (`closeAllStatsStreams`) rather than waiting for the next tick. CPU%/memory math (`computeStatsPercent`) is unchanged — same formula, cheaper transport.
+- **CPU package temperature reads `/sys/class/thermal` directly instead of calling `si.cpuTemperature()` every tick:** `SystemService.readCpuTemperatureDirect()` resolves and caches the right `thermal_zone*` path once (preferring one whose `type` mentions cpu/x86_pkg_temp/coretemp), then just parses an integer from its `temp` file on every subsequent call — no sensor-backend probing. `si.cpuTemperature()` is now only a fallback for a platform with no usable thermal zone, and is itself throttled to once per 30s (`readCpuTemperatureViaSiThrottled`) rather than called every 2s.
+- **SSL cert checks investigated, no change made:** `SslService.getCertificates()` (`ssl.service.ts`) is entirely mock/hardcoded data with no network I/O at all — there's no real per-tick cost to cache against yet. Flagging this only because it was called out in the original audit; revisit once real certificate checking is implemented.
+- **Verification:** `cd server && npx tsc` clean. Not independently client/UI-observable (server-side collection changes only); the owner should watch daemon CPU with container-monitoring mode toggled on for an extended period to confirm the stream approach behaves under real load and reconnects cleanly if a monitored container restarts.
+
+---
+
 ### [2026-09-18 UTC]
 **Agent:** Claude (Feature: remote pull & rebuild for git projects via SSH target)
 **Status:** `[COMPLETED]`

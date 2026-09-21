@@ -1,5 +1,16 @@
 [
   {
+    "id": "2026-09-21-perf-docker-stats-streaming",
+    "version": "1.4.2",
+    "title": "Perf: Docker Stats Streaming, Cheaper Thermal Read",
+    "date": "2026-09-21",
+    "description": "Container CPU/memory monitoring now reads from one persistent stats stream per running container instead of polling every container's stats over a fresh Docker API call each 2-second tick, and CPU package temperature reads /sys/class/thermal directly instead of probing sensors on every poll.",
+    "highlights": [
+      "Docker container monitoring: one open stats stream per running container (capped at 30) replaces a per-container stats() round-trip every tick; streams close automatically when a container stops or monitoring mode turns off.",
+      "CPU temperature: reads a cached /sys/class/thermal zone directly; falls back to the heavier sensor-probing library only on platforms without a usable zone, throttled to once per 30 seconds."
+    ]
+  },
+  {
     "id": "2026-09-21-fix-metrics-accuracy",
     "version": "1.4.1",
     "title": "Fix: Host CPU% and Disk Performance Accuracy",

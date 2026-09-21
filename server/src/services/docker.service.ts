@@ -11,6 +11,12 @@ interface SparklineHistory {
   lastTimestamp: number;
 }
 
+interface StatsStreamState {
+  stream: NodeJS.ReadableStream | null;
+  buffer: string;
+  latest: { cpuPercent: number; memBytes: number; memLimit: number } | null;
+}
+
 export class DockerService {
   public readonly name: string;
   private readonly lanIp: string | undefined;
@@ -19,6 +25,7 @@ export class DockerService {
   private docker: Docker | null = null;
   private isDockerAvailable = false;
   private historyMap: Map<string, SparklineHistory> = new Map();
+  private statsStreams: Map<string, StatsStreamState> = new Map();
   private mockContainers: ContainerMetric[] = [];
   private lastMockUpdate = 0;
   private isMonitoringActive = false;
@@ -27,6 +34,7 @@ export class DockerService {
   public setMonitoringActive(active: boolean, durationMs = 300000) {
     this.isMonitoringActive = active;
     this.monitorExpiresAt = active ? Date.now() + durationMs : 0;
+    if (!active) this.closeAllStatsStreams();
   }
 
   public isMonitoring(): boolean {
@@ -291,7 +299,9 @@ export class DockerService {
 
   /**
    * Lightweight container fetching: relies purely on docker.listContainers({ all: true }).
-   * Avoids calling container.stats() in loop to prevent high CPU usage on dockerd & containerd.
+   * When monitoring is active, per-container CPU/memory comes from an already-open
+   * stats stream (see ensureStatsStream) — a synchronous map read, not a fresh
+   * Docker API round-trip per container per tick.
    */
   private async fetchLiveContainers(tailscaleIp: string | undefined, activeMetrics = false): Promise<ContainerMetric[]> {
     if (!this.docker) return [];
@@ -302,13 +312,21 @@ export class DockerService {
 
     const statsMap = new Map<string, { cpuPercent: number; memBytes: number; memLimit: number }>();
     if (activeMetrics) {
-      const running = containers.filter(c => c.State.toLowerCase() === 'running');
-      await Promise.allSettled(
-        running.slice(0, 30).map(async (info) => {
-          const stats = await this.getSingleContainerStats(info.Id);
-          if (stats) statsMap.set(info.Id, stats);
-        })
-      );
+      const running = containers.filter(c => c.State.toLowerCase() === 'running').slice(0, 30);
+      const runningIds = new Set(running.map(c => c.Id));
+
+      for (const info of running) {
+        this.ensureStatsStream(info.Id);
+        const state = this.statsStreams.get(info.Id);
+        if (state?.latest) statsMap.set(info.Id, state.latest);
+      }
+
+      // A container that stopped or fell out of the top-30 no longer needs its stream open.
+      for (const id of this.statsStreams.keys()) {
+        if (!runningIds.has(id)) this.closeStatsStream(id);
+      }
+    } else {
+      this.closeAllStatsStreams();
     }
 
     for (const info of containers) {
@@ -389,29 +407,77 @@ export class DockerService {
     return results;
   }
 
+  private computeStatsPercent(stats: any): { cpuPercent: number; memBytes: number; memLimit: number } {
+    const cpuDelta = stats.cpu_stats.cpu_usage.total_usage - (stats.precpu_stats?.cpu_usage?.total_usage || 0);
+    const systemDelta = stats.cpu_stats.system_cpu_usage - (stats.precpu_stats?.system_cpu_usage || 0);
+    const onlineCpus = stats.cpu_stats.online_cpus || stats.cpu_stats.cpu_usage.percpu_usage?.length || 1;
+
+    let cpuPercent = 0;
+    if (systemDelta > 0 && cpuDelta > 0) {
+      cpuPercent = Number(((cpuDelta / systemDelta) * onlineCpus * 100).toFixed(1));
+    }
+
+    const memBytes = stats.memory_stats?.usage || 0;
+    const memLimit = stats.memory_stats?.limit || 1;
+
+    return { cpuPercent, memBytes, memLimit };
+  }
+
   /**
-   * On-demand stats for a single container if inspected specifically.
+   * Opens one persistent `stats({stream:true})` connection per running container
+   * instead of polling `stats({stream:false})` fresh every 2s tick — the Docker
+   * daemon pushes a new stats line on its own cadence (~1s) and this just reads
+   * whatever line arrived most recently. Idempotent: a container that already has
+   * a stream open is left alone. Docker sends newline-delimited JSON chunks that
+   * don't reliably align with TCP/pipe reads, so a per-stream string buffer holds
+   * a partial line until a full one is available.
    */
-  public async getSingleContainerStats(id: string): Promise<{ cpuPercent: number; memBytes: number; memLimit: number } | null> {
-    if (!this.docker || !this.isDockerAvailable || config.demoMode) return null;
-    try {
-      const container = this.docker.getContainer(id);
-      const stats = await container.stats({ stream: false });
-      const cpuDelta = stats.cpu_stats.cpu_usage.total_usage - (stats.precpu_stats?.cpu_usage?.total_usage || 0);
-      const systemDelta = stats.cpu_stats.system_cpu_usage - (stats.precpu_stats?.system_cpu_usage || 0);
-      const onlineCpus = stats.cpu_stats.online_cpus || stats.cpu_stats.cpu_usage.percpu_usage?.length || 1;
-      
-      let cpuPercent = 0;
-      if (systemDelta > 0 && cpuDelta > 0) {
-        cpuPercent = Number(((cpuDelta / systemDelta) * onlineCpus * 100).toFixed(1));
-      }
+  private ensureStatsStream(id: string): void {
+    if (this.statsStreams.has(id) || !this.docker) return;
 
-      const memBytes = stats.memory_stats?.usage || 0;
-      const memLimit = stats.memory_stats?.limit || 1;
+    const state: StatsStreamState = { stream: null, buffer: '', latest: null };
+    this.statsStreams.set(id, state);
 
-      return { cpuPercent, memBytes, memLimit };
-    } catch {
-      return null;
+    const container = this.docker.getContainer(id);
+    container.stats({ stream: true })
+      .then((stream: NodeJS.ReadableStream) => {
+        // The container (or monitoring) may have stopped while this promise was pending.
+        if (!this.statsStreams.has(id)) {
+          if (typeof (stream as any).destroy === 'function') (stream as any).destroy();
+          return;
+        }
+        state.stream = stream;
+        stream.on('data', (chunk: Buffer) => {
+          state.buffer += chunk.toString('utf8');
+          let newlineIdx: number;
+          while ((newlineIdx = state.buffer.indexOf('\n')) !== -1) {
+            const line = state.buffer.slice(0, newlineIdx);
+            state.buffer = state.buffer.slice(newlineIdx + 1);
+            if (!line.trim()) continue;
+            try {
+              state.latest = this.computeStatsPercent(JSON.parse(line));
+            } catch {
+              // Partial or malformed line — wait for the next chunk.
+            }
+          }
+        });
+        stream.on('error', () => this.closeStatsStream(id));
+        stream.on('end', () => this.statsStreams.delete(id));
+      })
+      .catch(() => this.statsStreams.delete(id));
+  }
+
+  private closeStatsStream(id: string): void {
+    const state = this.statsStreams.get(id);
+    if (state?.stream && typeof (state.stream as any).destroy === 'function') {
+      (state.stream as any).destroy();
+    }
+    this.statsStreams.delete(id);
+  }
+
+  private closeAllStatsStreams(): void {
+    for (const id of this.statsStreams.keys()) {
+      this.closeStatsStream(id);
     }
   }
 
