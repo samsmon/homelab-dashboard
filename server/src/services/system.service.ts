@@ -21,6 +21,7 @@ const PROCESS_LIST_LIMIT = 30;
 export class SystemService {
   private diskPerfMap: Map<string, DiskPerfHistory> = new Map();
   private processIoMap: Map<number, { lastReadBytes: number; lastWriteBytes: number; lastTimestamp: number }> = new Map();
+  private lastCpuTimes: { idle: number; total: number } | null = null;
 
   public async getDockerHostMetrics(): Promise<DockerHostMetrics> {
     const cpus = os.cpus();
@@ -28,10 +29,8 @@ export class SystemService {
     const freeMem = os.freemem();
     const usedMem = totalMem - freeMem;
 
-    // Fast CPU estimation via loadavg (normalized to cores)
     const loadAvg = os.loadavg();
-    const coreCount = cpus.length || 1;
-    const cpuPercent = Math.min(100, Math.max(0, Number(((loadAvg[0] / coreCount) * 100).toFixed(1))));
+    const cpuPercent = this.readCpuPercent(cpus);
 
     const ramPercent = Number(((usedMem / totalMem) * 100).toFixed(1));
 
@@ -49,6 +48,36 @@ export class SystemService {
       uptimeSeconds: Math.floor(os.uptime()),
       thermalThrottle,
     };
+  }
+
+  /**
+   * True CPU busy% from /proc/stat delta between two calls (jiffies since boot,
+   * broken down by mode). loadavg is a run-queue length, not utilization, so it
+   * diverges under I/O wait; this matches what gopsutil-based tools compute.
+   * Falls back to loadavg on platforms without /proc/stat (dev on Windows/macOS).
+   */
+  private readCpuPercent(cpus: os.CpuInfo[]): number {
+    try {
+      const line = fs.readFileSync('/proc/stat', 'utf8').split('\n')[0];
+      const parts = line.trim().split(/\s+/).slice(1).map(Number);
+      const [user, nice, system, idle, iowait = 0, irq = 0, softirq = 0, steal = 0] = parts;
+      const idleTotal = idle + iowait;
+      const total = user + nice + system + idleTotal + irq + softirq + steal;
+
+      const prev = this.lastCpuTimes;
+      this.lastCpuTimes = { idle: idleTotal, total };
+
+      if (!prev) return 0;
+
+      const idleDelta = idleTotal - prev.idle;
+      const totalDelta = total - prev.total;
+      if (totalDelta <= 0) return 0;
+
+      return Math.min(100, Math.max(0, Number(((1 - idleDelta / totalDelta) * 100).toFixed(1))));
+    } catch {
+      const coreCount = cpus.length || 1;
+      return Math.min(100, Math.max(0, Number(((os.loadavg()[0] / coreCount) * 100).toFixed(1))));
+    }
   }
 
   private async readThermalThrottleVitals(): Promise<ThermalThrottleVitals> {
@@ -308,8 +337,10 @@ export class SystemService {
       for (const line of lines) {
         const parts = line.trim().split(/\s+/);
         if (parts.length < 14) continue;
-        const devName = parts[2];
-        map.set(devName, {
+        // key is "major:minor", the same identity fs.statSync(path).dev decodes to —
+        // this is how a mount is matched to its row without guessing from the mount path.
+        const key = `${parts[0]}:${parts[1]}`;
+        map.set(key, {
           readsCompleted: parseInt(parts[3], 10),
           sectorsRead: parseInt(parts[5], 10),
           timeReadingMs: parseInt(parts[6], 10),
@@ -325,6 +356,24 @@ export class SystemService {
     return map;
   }
 
+  /**
+   * Resolves a mount path to its "major:minor" device identity via the standard
+   * glibc encoding of st_dev, so /proc/diskstats can be looked up without guessing
+   * a device name from the mount path's own folder name. A mount on LVM/device-mapper
+   * has its own major:minor with no matching /proc/diskstats row for the physical
+   * disk underneath — that's a real "not available" case, not a bug to work around.
+   */
+  private getDeviceKey(mountPath: string): string | null {
+    try {
+      const dev = fs.statSync(mountPath, { bigint: true }).dev;
+      const major = Number((dev >> 8n) & 0xfffn) | Number((dev >> 32n) & ~0xfffn);
+      const minor = Number(dev & 0xffn) | Number((dev >> 12n) & ~0xffn);
+      return `${major}:${minor}`;
+    } catch {
+      return null;
+    }
+  }
+
   private getDiskPerformance(mountPath: string, diskStats: Map<string, any>): {
     readRateBytesPerSec?: number;
     writeRateBytesPerSec?: number;
@@ -333,20 +382,13 @@ export class SystemService {
     sparklineActiveTime?: number[];
   } {
     try {
-      let devName = '';
-      if (mountPath === '/') {
-        devName = 'sda'; // Default for system disk
-      } else if (mountPath.includes('media')) {
-        devName = 'sdb';
-      } else if (mountPath.includes('cloud')) {
-        devName = 'sdc';
-      } else if (mountPath.includes('music')) {
-        devName = 'sdd';
-      }
-
-      const current = diskStats.get(devName);
+      const deviceKey = this.getDeviceKey(mountPath);
+      const current = deviceKey ? diskStats.get(deviceKey) : undefined;
       if (!current) {
-        return this.getSimulatedDiskPerformance(mountPath);
+        // Demo mode (or a platform with no /proc/diskstats, e.g. dev on Windows/macOS)
+        // still wants plausible-looking numbers; real mode reports "not available"
+        // instead of fabricating a reading for a device it couldn't resolve (LVM/dm).
+        return config.demoMode ? this.getSimulatedDiskPerformance(mountPath) : {};
       }
 
       const now = Date.now();
@@ -397,7 +439,7 @@ export class SystemService {
         sparklineActiveTime: sparkline,
       };
     } catch {
-      return this.getSimulatedDiskPerformance(mountPath);
+      return config.demoMode ? this.getSimulatedDiskPerformance(mountPath) : {};
     }
   }
 

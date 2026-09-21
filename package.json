@@ -1,6 +1,6 @@
 {
   "name": "homelab-cockpit",
-  "version": "1.3.2",
+  "version": "1.4.1",
   "private": true,
   "description": "Homelab Cockpit / Owner POV Real-Time Dashboard",
   "scripts": {

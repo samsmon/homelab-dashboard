@@ -5,6 +5,32 @@ This file tracks the activities of all AI agents (Gemini, Claude, etc.) operatin
 
 ---
 
+### [2026-09-21 UTC]
+**Agent:** Claude (Fix: metrics accuracy — host CPU%, disk device-key, per-host demo honesty)
+**Status:** `[COMPLETED]`
+**Activities Completed:**
+- **Host CPU% now a real utilization delta, not load average:** `SystemService.readCpuPercent()` (`system.service.ts`) reads `/proc/stat`, keeps the previous idle/total jiffy counts, and computes `(1 - idleDelta/totalDelta) * 100` between two ticks — the same shape gopsutil-based tools (Beszel) use. `os.loadavg()[0]/coreCount*100` (the old formula) is a run-queue length including I/O-blocked processes, not CPU busy time, and diverged visibly under disk load. Falls back to the old loadavg formula only when `/proc/stat` isn't readable (Windows/macOS dev).
+- **Disk performance device resolution replaced with real major:minor lookup:** `getDeviceKey()` resolves a mount path to `major:minor` via `fs.statSync(path, {bigint:true}).dev` decoded with the standard glibc macros, matching CLAUDE.md's already-documented intended design that the actual code had drifted from — the prior implementation guessed a `/dev/sdX` name from whether the mount path's own text contained "media"/"cloud"/"music", which silently mismatched on any host whose device naming didn't happen to match the original owner's setup. `readDiskStats()` now keys its `/proc/diskstats` map by the same `major:minor` identity instead of the raw device name. A mount that resolves to no matching row (LVM/device-mapper) now returns "not available" fields in real mode instead of fabricated sine/cosine numbers; the simulated fallback is now gated to `config.demoMode` only.
+- **Per-host live/demo status now reflects the actual tick, not a global OR:** `CollectorService.collect()` previously set `dockerHosts[].connected` from `service.isConnected()` (static reachability) and `isDemoMode` from `anyLive` across *all* configured hosts — so if any secondary host's live fetch succeeded, the whole snapshot reported `isDemoMode: false` even while the primary host (the only one that ever serves mock data on failure) was silently showing jittered mock containers. `connected` now reflects `result.isLive` for that tick, and `isDemoMode` is keyed off the primary host's live status specifically.
+- **Verification:** `cd server && npx tsc` clean. Not client/UI-observable in a way `npx vite build` would catch (server-side calculation only); no client changes made.
+- **Not in scope (flagged for a future pass, not fixed here):** container CPU/memory reporting flat `0%` when container-monitoring mode is off is an intentional existing tradeoff (`docker.service.ts` comment: avoids per-container `stats()` polling load) — the real fix is switching to Dockerode's persistent `stats({stream:true})` per running container instead of on-demand polling, which is a bigger architectural change than this pass covers.
+
+---
+
+### [2026-09-18 UTC]
+**Agent:** Claude (Feature: remote pull & rebuild for git projects via SSH target)
+**Status:** `[COMPLETED]`
+**Activities Completed:**
+- **`GitProjectRecord.sshTarget`:** optional, names an entry in `config.sshTargets` (the same list Terminal and remote Processes already use). Plumbed through `register()`, `getSnapshot()`, and validated server-side in the `POST /api/git-projects/:containerName` route against `terminalService.getTargetNames()` before it's stored.
+- **Local/remote execution unified behind two dispatch points:** `GitProjectsService.runExec()`/`runCapture()` pick local `execFile`/`spawn` or a new `sshExec()`/`sshCapture()` (over `ssh2`, same library and key `TerminalService` already uses) based on whether the record has an `sshTarget`. Every git/docker call in `register()`, `checkPull()`, `markDeployedFromLocal()`, and `pullAndRebuild()` now goes through one of these instead of a direct `execFile`/`spawn` call, so the exact same fixed command sequence (never request-supplied text) works against either target. `resetPullState()`/`stop()` now cancel through a small `Killable` wrapper instead of assuming a local `ChildProcess`, so a running SSH exec can be cancelled the same way a local one always could.
+- **`resolveWorkingTree()` branches by target:** unset `sshTarget` keeps the existing folder-name-under-`gitProjectsRoot` + `fs.existsSync` behavior; a remote project's `localPath` must be an absolute path on that host instead — there's no local filesystem to validate it against, so it's trusted the same way `TerminalService` already trusts full shell access to that target.
+- **Self-redeploy guard scoped to local-only:** the out-of-process `homelab-redeploy.sh` branch in `pullAndRebuild()` exists to stop a rebuild from killing this daemon's own process, which isn't a risk on a different host — it's now skipped whenever `sshTarget` is set, even if the container happens to be named `homelab-cockpit`.
+- **Client:** `GitProjectModal.tsx` gets a "Runs on" selector (default: this daemon, or any configured SSH target — fetched from the existing `GET /api/ssh-targets`) and adjusts the Local path label/placeholder/helper text for a remote target; the standing warning banner now explains the SSH option instead of stating a flat limitation. `GitProjectsPage.tsx` shows `· ssh:<target>` next to a remote project's repo line. `GitPullInline.tsx`'s self-redeploy reconnect check (`isSelf`) now also excludes projects with an `sshTarget`, matching the server.
+- **Docs:** `CLAUDE.md`'s "Docker is multi-host" and "closed set of commands" paragraphs rewritten to describe the SSH dispatch instead of stating the old single-host limitation. `docs/USER_MANUAL.md`'s Git projects section explains the new "Runs on" selector and the remote `localPath` meaning. `announcements.json` got a new `1.4.0` entry; root `package.json` version bumped to match.
+- **Verification:** `cd server && npx tsc` clean; `cd client && npx tsc -b && npx vite build` — `vite build` clean (1632 modules, no errors); `tsc -b` fails on two pre-existing CSS side-effect import errors (`TerminalView.tsx`, `main.tsx`) confirmed present on `main` before this change too (verified via `git stash`), unrelated to this feature. No UI click-through was performed (per repo convention — owner tests behavior manually); the owner will need an `SSH_TARGETS` entry configured and reachable to actually exercise a remote pull.
+
+---
+
 ### [2026-09-18 UTC]
 **Agent:** Claude (Investigate: stale "whitearchive-hosts" fleet label + Git Projects single-host warning)
 **Status:** `[COMPLETED]`

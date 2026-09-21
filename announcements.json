@@ -1,5 +1,30 @@
 [
   {
+    "id": "2026-09-21-fix-metrics-accuracy",
+    "version": "1.4.1",
+    "title": "Fix: Host CPU% and Disk Performance Accuracy",
+    "date": "2026-09-21",
+    "description": "Host CPU usage now reflects real utilization from /proc/stat instead of load average, disk performance resolves each mount to its actual block device instead of guessing from the mount path's own name, and a snapshot no longer hides that the primary host fell back to demo data just because a secondary host stayed connected.",
+    "highlights": [
+      "Host CPU%: computed from a /proc/stat idle/total delta between polls, matching how load-average-independent monitoring tools measure utilization; falls back to the old load-average estimate only on platforms without /proc/stat.",
+      "Disk performance: mounts are matched to /proc/diskstats by their real major:minor device identity instead of a substring guess on the mount path ('media'/'cloud'/'music'); a mount that can't be resolved (e.g. LVM/device-mapper) now shows 'not available' instead of fabricated numbers.",
+      "Snapshot honesty: each Docker host's 'connected' status now reflects that tick's actual fetch result, and isDemoMode is keyed off the primary host specifically instead of any configured host being live."
+    ]
+  },
+  {
+    "id": "2026-09-18-git-projects-remote-ssh-rebuild",
+    "version": "1.4.0",
+    "title": "Git Projects: Pull & Rebuild Over SSH",
+    "date": "2026-09-18",
+    "description": "Tracked projects can now be pulled and rebuilt on a separate Docker host or LXC, not just the one Homelab Cockpit itself runs on — pick an SSH target in the edit dialog and the pull and rebuild run there instead.",
+    "highlights": [
+      "Track a Git Project: new 'Runs on' selector lists your configured SSH targets (the same ones Terminal and Processes use) alongside the default 'this daemon' option.",
+      "With an SSH target picked, Local path becomes an absolute path on that remote host instead of a folder name under GIT_PROJECTS_ROOT.",
+      "Pull & rebuild's live log, migration-risk check, and auto-deploy all work the same way for a remote target as they do locally — same fixed git/docker sequence, just run over SSH.",
+      "Docs: CLAUDE.md and the user manual updated; the standing single-host warning in the tracking form now explains the SSH target option instead."
+    ]
+  },
+  {
     "id": "2026-09-18-git-projects-single-host-warning",
     "version": "1.3.2",
     "title": "Git Projects: Single-Host Limitation Warning",

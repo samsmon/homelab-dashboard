@@ -159,11 +159,18 @@ export class CollectorService {
 
     const dockerHosts: DockerHostSummary[] = perHostResults.map(({ service, result }) => ({
       name: service.name,
-      connected: service.isConnected(),
+      // Reflects this tick's actual fetch outcome, not just whether the service was
+      // ever able to open a socket — a host whose live fetch failed just now and fell
+      // back to mock data must not report itself as connected for this snapshot.
+      connected: result.isLive,
       containerCount: result.containers.length,
     }));
 
-    const anyLive = perHostResults.some(({ result }) => result.isLive);
+    // Only the primary host (dockerServices[0]) ever serves mock data on a failed
+    // fetch — a secondary host that isn't live just returns an empty container list
+    // (see DockerService.getContainers). So "is this snapshot showing demo data" is
+    // about the primary host specifically, not "did every configured host succeed."
+    const primaryIsLive = perHostResults[0]?.result.isLive ?? false;
     const allContainers = perHostResults.flatMap(({ result }) => result.containers);
 
     const pins = this.pinsService.getAll();
@@ -192,7 +199,7 @@ export class CollectorService {
       dockerHygiene: diskHygiene,
       gitProjects,
       sentinel,
-      isDemoMode: !anyLive || config.demoMode,
+      isDemoMode: !primaryIsLive || config.demoMode,
       appVersion,
       containerMonitoring: {
         active: isMonitoring,
