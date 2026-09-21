@@ -1,14 +1,29 @@
 import fs from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
-import { execFile as execFileCb, spawn, ChildProcess } from 'node:child_process';
+import { execFile as execFileCb, spawn } from 'node:child_process';
 import { promisify } from 'node:util';
-import { config } from '../config.js';
+import { Client as SshClient } from 'ssh2';
+import { config, SshTargetConfig } from '../config.js';
 import { GitProjectStatus, GitPullState } from '../types.js';
 import { NotificationsService } from './notifications.service.js';
 
 const execFile = promisify(execFileCb);
 const MAX_PULL_LOG_LINES = 400;
+
+/** Anything that can be told to stop — a local child process or a remote SSH exec stream. */
+interface Killable {
+  kill(): void;
+}
+
+/** Single-quotes a value for safe inclusion in a POSIX shell command string (used for SSH exec). */
+function shellQuote(value: string): string {
+  return `'${value.replace(/'/g, `'\\''`)}'`;
+}
+
+function buildRemoteCommand(cwd: string, cmd: string, args: string[]): string {
+  return `cd ${shellQuote(cwd)} && ${shellQuote(cmd)} ${args.map(shellQuote).join(' ')}`;
+}
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -32,6 +47,10 @@ interface GitProjectRecord {
   repoName: string;
   branch: string;
   localPath?: string;
+  // Name of an entry in config.sshTargets — when set, pull & rebuild runs
+  // over SSH against that host instead of this daemon's own docker.sock.
+  // Unset means the project's container runs on this daemon's own host.
+  sshTarget?: string;
   rebuildCommand?: RebuildCommand;
   lastKnownSha?: string;
   // Cached result of the last successful GitHub check, so every collector
@@ -77,7 +96,7 @@ export class GitProjectsService {
   private dbPath: string;
   private db: GitProjectsDb;
   private pullStates: Map<string, GitPullState> = new Map();
-  private activeProcesses: Map<string, ChildProcess> = new Map();
+  private activeProcesses: Map<string, Killable> = new Map();
 
   constructor(private notifications: NotificationsService) {
     this.dataDir = path.resolve(__dirname, '../../../data');
@@ -124,7 +143,8 @@ export class GitProjectsService {
     branch: string,
     localPath?: string,
     rebuildCommand?: RebuildCommand,
-    autoDeploy?: boolean
+    autoDeploy?: boolean,
+    sshTarget?: string
   ): Promise<GitProjectRecord> {
     const existing = this.db.projects[containerName];
     const record: GitProjectRecord = {
@@ -132,6 +152,7 @@ export class GitProjectsService {
       repoName: repoName.trim(),
       branch: branch.trim() || 'main',
       localPath: localPath?.trim() || existing?.localPath,
+      sshTarget: sshTarget ?? existing?.sshTarget,
       rebuildCommand: rebuildCommand || existing?.rebuildCommand,
       lastKnownSha: existing?.lastKnownSha,
       autoDeploy: autoDeploy ?? existing?.autoDeploy ?? false,
@@ -146,7 +167,7 @@ export class GitProjectsService {
     if (record.localPath && !record.lastKnownSha) {
       try {
         const cwd = this.resolveWorkingTree(record);
-        const { stdout } = await execFile('git', ['-C', cwd, 'rev-parse', 'HEAD'], EXEC_OPTS);
+        const { stdout } = await this.runExec(record, 'git', ['rev-parse', 'HEAD'], cwd);
         record.lastKnownSha = stdout.trim();
       } catch {
         // No working tree there yet, or it's not a git repo — leave it
@@ -174,12 +195,7 @@ export class GitProjectsService {
     const active = this.activeProcesses.get(containerName);
     if (active) {
       try {
-        active.kill('SIGTERM');
-        setTimeout(() => {
-          try {
-            if (!active.killed) active.kill('SIGKILL');
-          } catch {}
-        }, 1500);
+        active.kill();
       } catch {}
       this.activeProcesses.delete(containerName);
     }
@@ -187,16 +203,11 @@ export class GitProjectsService {
     return true;
   }
 
-  /** Terminates all active child processes cleanly to prevent zombies when daemon stops. */
+  /** Terminates all active local/remote runs cleanly to prevent zombies when daemon stops. */
   public stop() {
-    for (const [name, child] of this.activeProcesses.entries()) {
+    for (const killable of this.activeProcesses.values()) {
       try {
-        child.kill('SIGTERM');
-        setTimeout(() => {
-          try {
-            if (!child.killed) child.kill('SIGKILL');
-          } catch {}
-        }, 1000);
+        killable.kill();
       } catch {}
     }
     this.activeProcesses.clear();
@@ -230,7 +241,7 @@ export class GitProjectsService {
     }
 
     try {
-      const { stdout } = await execFile('git', ['-C', cwd, 'rev-parse', 'HEAD'], EXEC_OPTS);
+      const { stdout } = await this.runExec(record, 'git', ['rev-parse', 'HEAD'], cwd);
       const sha = stdout.trim();
       record.lastKnownSha = sha;
       this.saveDb();
@@ -253,6 +264,7 @@ export class GitProjectsService {
         repoName: record.repoName,
         branch: record.branch,
         localPath: record.localPath,
+        sshTarget: record.sshTarget,
         rebuildCommand: record.rebuildCommand,
         autoDeploy: record.autoDeploy ?? false,
         autoDeployBlocked: record.autoDeployBlocked ?? false,
@@ -342,13 +354,26 @@ export class GitProjectsService {
   }
 
   /**
-   * Resolves a project's working tree to an absolute path and confirms it's
-   * actually inside config.gitProjectsRoot — localPath is owner-entered, so
-   * this blocks a value like "../../etc" from escaping the mounted directory.
+   * Resolves a project's working tree to an absolute path.
+   *
+   * Local projects: localPath is a folder name under config.gitProjectsRoot,
+   * resolved and confirmed to stay inside that mounted root — localPath is
+   * owner-entered, so this blocks a value like "../../etc" from escaping it.
+   *
+   * Remote (sshTarget set) projects: there's no local filesystem to resolve
+   * against or check existence on, so localPath must already be an absolute
+   * path on that host; the owner's key already has full interactive shell
+   * access to it via Terminal, so trusting this path is not a wider grant.
    */
   private resolveWorkingTree(record: GitProjectRecord): string {
     if (!record.localPath) {
       throw new Error('This project has no local path configured yet — edit it to add one.');
+    }
+    if (record.sshTarget) {
+      if (!record.localPath.startsWith('/')) {
+        throw new Error('For a project on a remote SSH target, localPath must be an absolute path on that host.');
+      }
+      return record.localPath;
     }
     const resolved = path.resolve(config.gitProjectsRoot, record.localPath);
     const root = path.resolve(config.gitProjectsRoot);
@@ -359,6 +384,186 @@ export class GitProjectsService {
       throw new Error(`${resolved} does not exist inside the container — check the bind mount and localPath.`);
     }
     return resolved;
+  }
+
+  private resolveSshTarget(record: GitProjectRecord): SshTargetConfig {
+    const target = config.sshTargets.find((t) => t.name === record.sshTarget);
+    if (!target) {
+      throw new Error(`Unknown SSH target "${record.sshTarget}" — check SSH_TARGETS and re-edit this project.`);
+    }
+    return target;
+  }
+
+  /**
+   * Runs a fixed command and returns its full output once finished — the
+   * remote counterpart of execFile. Routes to the local execFile or an SSH
+   * exec against record.sshTarget depending on where this project lives.
+   */
+  private runExec(
+    record: GitProjectRecord,
+    cmd: string,
+    args: string[],
+    cwd: string
+  ): Promise<{ stdout: string; stderr: string }> {
+    if (record.sshTarget) {
+      return this.sshExec(this.resolveSshTarget(record), cmd, args, cwd);
+    }
+    return execFile(cmd, args, { ...EXEC_OPTS, cwd });
+  }
+
+  /**
+   * Runs a fixed command, streaming each output line into onLine as it
+   * happens — the remote counterpart of spawnCapture, used for the live
+   * pull/rebuild log. Same local/SSH routing as runExec().
+   */
+  private runCapture(
+    containerName: string,
+    record: GitProjectRecord,
+    cmd: string,
+    args: string[],
+    cwd: string,
+    onLine: (line: string) => void
+  ): Promise<void> {
+    if (record.sshTarget) {
+      return this.sshCapture(containerName, this.resolveSshTarget(record), cmd, args, cwd, onLine);
+    }
+    return this.spawnCapture(containerName, cmd, args, cwd, onLine);
+  }
+
+  /** Best-effort removal of a stale .git/index.lock, local or remote — see the callers for why this can be needed. */
+  private async cleanStaleLock(record: GitProjectRecord, cwd: string, onLine?: (line: string) => void): Promise<void> {
+    if (record.sshTarget) {
+      try {
+        await this.runExec(record, 'rm', ['-f', `${cwd}/.git/index.lock`], cwd);
+      } catch {}
+      return;
+    }
+    const lockFile = path.join(cwd, '.git', 'index.lock');
+    if (fs.existsSync(lockFile)) {
+      try {
+        fs.unlinkSync(lockFile);
+        onLine?.('ℹ Stale .git/index.lock file detected and removed.');
+      } catch {}
+    }
+  }
+
+  private readSshPrivateKey(): Buffer {
+    return fs.readFileSync(config.sshPrivateKeyPath);
+  }
+
+  /** One-shot SSH exec that collects full stdout/stderr and rejects on a non-zero exit — mirrors execFile(). */
+  private sshExec(target: SshTargetConfig, cmd: string, args: string[], cwd: string): Promise<{ stdout: string; stderr: string }> {
+    const command = buildRemoteCommand(cwd, cmd, args);
+    return new Promise((resolve, reject) => {
+      let privateKey: Buffer;
+      try {
+        privateKey = this.readSshPrivateKey();
+      } catch {
+        reject(new Error('SSH private key not found on the daemon.'));
+        return;
+      }
+
+      const client = new SshClient();
+      client
+        .on('ready', () => {
+          client.exec(command, (err, stream) => {
+            if (err) {
+              client.end();
+              reject(err);
+              return;
+            }
+            let stdout = '';
+            let stderr = '';
+            stream.on('data', (chunk: Buffer) => (stdout += chunk.toString()));
+            stream.stderr.on('data', (chunk: Buffer) => (stderr += chunk.toString()));
+            stream.on('close', (code: number) => {
+              client.end();
+              if (code === 0) resolve({ stdout, stderr });
+              else reject(new Error(stderr.trim() || `${cmd} exited with code ${code}`));
+            });
+          });
+        })
+        .on('error', (err) => reject(err))
+        .connect({ host: target.host, port: target.port, username: target.user, privateKey, readyTimeout: 8000 });
+    });
+  }
+
+  /** Streaming SSH exec, tracked in activeProcesses so resetPullState()/stop() can cancel it mid-run. */
+  private sshCapture(
+    containerName: string,
+    target: SshTargetConfig,
+    cmd: string,
+    args: string[],
+    cwd: string,
+    onLine: (line: string) => void
+  ): Promise<void> {
+    const command = buildRemoteCommand(cwd, cmd, args);
+    return new Promise((resolve, reject) => {
+      let privateKey: Buffer;
+      try {
+        privateKey = this.readSshPrivateKey();
+      } catch {
+        reject(new Error('SSH private key not found on the daemon.'));
+        return;
+      }
+
+      const client = new SshClient();
+      let killable: Killable | undefined;
+      const cleanup = () => {
+        if (killable && this.activeProcesses.get(containerName) === killable) {
+          this.activeProcesses.delete(containerName);
+        }
+      };
+
+      client
+        .on('ready', () => {
+          client.exec(command, (err, stream) => {
+            if (err) {
+              client.end();
+              reject(err);
+              return;
+            }
+            killable = {
+              kill: () => {
+                try {
+                  stream.close();
+                } catch {}
+                try {
+                  client.end();
+                } catch {}
+              },
+            };
+            this.activeProcesses.set(containerName, killable);
+
+            const pipe = (readable: NodeJS.ReadableStream) => {
+              let buffer = '';
+              readable.on('data', (chunk: Buffer) => {
+                buffer += chunk.toString();
+                const lines = buffer.split('\n');
+                buffer = lines.pop() ?? '';
+                for (const line of lines) onLine(line);
+              });
+              readable.on('end', () => {
+                if (buffer.trim()) onLine(buffer);
+              });
+            };
+            pipe(stream);
+            pipe(stream.stderr);
+
+            stream.on('close', (code: number) => {
+              cleanup();
+              client.end();
+              if (code === 0) resolve();
+              else reject(new Error(`${cmd} exited with code ${code}`));
+            });
+          });
+        })
+        .on('error', (err) => {
+          cleanup();
+          reject(err);
+        })
+        .connect({ host: target.host, port: target.port, username: target.user, privateKey, readyTimeout: 8000 });
+    });
   }
 
   /**
@@ -372,15 +577,13 @@ export class GitProjectsService {
 
     try {
       const cwd = this.resolveWorkingTree(record);
-      const lockFile = path.join(cwd, '.git', 'index.lock');
-      if (fs.existsSync(lockFile)) {
-        try { fs.unlinkSync(lockFile); } catch {}
-      }
-      await execFile('git', ['-C', cwd, 'fetch', 'origin', record.branch], EXEC_OPTS);
-      const { stdout } = await execFile(
+      await this.cleanStaleLock(record, cwd);
+      await this.runExec(record, 'git', ['fetch', 'origin', record.branch], cwd);
+      const { stdout } = await this.runExec(
+        record,
         'git',
-        ['-C', cwd, 'diff', '--name-only', `HEAD..origin/${record.branch}`],
-        EXEC_OPTS
+        ['diff', '--name-only', `HEAD..origin/${record.branch}`],
+        cwd
       );
       const changedFiles = stdout.split('\n').map((l) => l.trim()).filter(Boolean);
       const riskyFiles = changedFiles.filter((f) => MIGRATION_RISK_PATTERNS.some((p) => p.test(f)));
@@ -390,7 +593,7 @@ export class GitProjectsService {
       // before this project had a local path), self-heal it here rather
       // than leaving "Update available" showing with nothing left to pull.
       if (changedFiles.length === 0) {
-        const { stdout: headOut } = await execFile('git', ['-C', cwd, 'rev-parse', 'HEAD'], EXEC_OPTS);
+        const { stdout: headOut } = await this.runExec(record, 'git', ['rev-parse', 'HEAD'], cwd);
         const head = headOut.trim();
         if (record.lastKnownSha !== head) {
           record.lastKnownSha = head;
@@ -476,21 +679,15 @@ export class GitProjectsService {
 
     try {
       // 0. Clean stale git lock if present
-      const lockFile = path.join(cwd, '.git', 'index.lock');
-      if (fs.existsSync(lockFile)) {
-        try {
-          fs.unlinkSync(lockFile);
-          appendLog('ℹ Stale .git/index.lock file detected and removed.');
-        } catch {}
-      }
+      await this.cleanStaleLock(record, cwd, appendLog);
 
       // 1. Check for uncommitted tracked changes and safely stash them so user edits are not lost
       try {
-        const { stdout: statusOut } = await execFile('git', ['-C', cwd, 'status', '--porcelain'], EXEC_OPTS);
+        const { stdout: statusOut } = await this.runExec(record, 'git', ['status', '--porcelain'], cwd);
         if (statusOut.trim()) {
           appendLog('ℹ Menemukan perubahan lokal pada repositori. Menyimpan backup sementara via git stash...');
           appendLog('$ git stash push -m "Auto-stashed before pull and redeploy"');
-          await this.spawnCapture(containerName, 'git', ['-C', cwd, 'stash', 'push', '-m', 'Auto-stashed before pull and redeploy'], cwd, appendLog);
+          await this.runCapture(containerName, record, 'git', ['stash', 'push', '-m', 'Auto-stashed before pull and redeploy'], cwd, appendLog);
         }
       } catch (stashErr: any) {
         // Non-blocking stash attempt
@@ -499,16 +696,21 @@ export class GitProjectsService {
 
       // 2. Fetch latest commits from remote origin
       appendLog(`$ git fetch origin ${record.branch}`);
-      await this.spawnCapture(containerName, 'git', ['-C', cwd, 'fetch', 'origin', record.branch], cwd, appendLog);
+      await this.runCapture(containerName, record, 'git', ['fetch', 'origin', record.branch], cwd, appendLog);
 
       // 3. Force-sync working tree cleanly to remote branch (prevents merge aborts while keeping untracked .env & volume data intact)
       appendLog(`$ git reset --hard origin/${record.branch}`);
-      await this.spawnCapture(containerName, 'git', ['-C', cwd, 'reset', '--hard', `origin/${record.branch}`], cwd, appendLog);
+      await this.runCapture(containerName, record, 'git', ['reset', '--hard', `origin/${record.branch}`], cwd, appendLog);
 
-      const { stdout: shaOut } = await execFile('git', ['-C', cwd, 'rev-parse', 'HEAD'], EXEC_OPTS);
+      const { stdout: shaOut } = await this.runExec(record, 'git', ['rev-parse', 'HEAD'], cwd);
       const newSha = shaOut.trim();
 
-      const isSelf = containerName === 'homelab-cockpit' || record.repoName === 'homelab-dashboard';
+      // The out-of-process self-redeploy dance below exists only because a
+      // rebuild running *inside this daemon's own container* would kill the
+      // very process performing it. A remote sshTarget's docker compose runs
+      // on a different host from this Fastify process, so that risk doesn't
+      // apply there — treat it as a normal remote rebuild instead.
+      const isSelf = !record.sshTarget && (containerName === 'homelab-cockpit' || record.repoName === 'homelab-dashboard');
       if (isSelf) {
         appendLog('ℹ Terdeteksi self-redeploy pada container Homelab Dashboard.');
         appendLog('ℹ Memicu out-of-process runner agar proses rebuild tidak terputus saat container dimatikan...');
@@ -560,7 +762,7 @@ export class GitProjectsService {
       state.status = 'rebuilding';
       appendLog(`$ docker ${REBUILD_ARGS[record.rebuildCommand].join(' ')}`);
       try {
-        await this.spawnCapture(containerName, 'docker', REBUILD_ARGS[record.rebuildCommand], cwd, appendLog);
+        await this.runCapture(containerName, record, 'docker', REBUILD_ARGS[record.rebuildCommand], cwd, appendLog);
       } catch (dockerErr: any) {
         // Auto-heal missing external docker network if detected in output
         const fullLog = state.log.join('\n');
@@ -570,10 +772,10 @@ export class GitProjectsService {
           appendLog(`⚠ External network "${missingNet}" is missing on host.`);
           appendLog(`ℹ Auto-creating external network: $ docker network create ${missingNet}...`);
           try {
-            await execFile('docker', ['network', 'create', missingNet], EXEC_OPTS);
+            await this.runExec(record, 'docker', ['network', 'create', missingNet], cwd);
             appendLog(`✔ Network "${missingNet}" created successfully.`);
             appendLog(`$ docker ${REBUILD_ARGS[record.rebuildCommand].join(' ')} (retrying...)`);
-            await this.spawnCapture(containerName, 'docker', REBUILD_ARGS[record.rebuildCommand], cwd, appendLog);
+            await this.runCapture(containerName, record, 'docker', REBUILD_ARGS[record.rebuildCommand], cwd, appendLog);
           } catch (retryErr: any) {
             throw new Error(`Failed to recreate external network ${missingNet}: ${retryErr.message || dockerErr.message}`);
           }
@@ -612,10 +814,22 @@ export class GitProjectsService {
   ): Promise<void> {
     return new Promise((resolve, reject) => {
       const child = spawn(cmd, args, { cwd, timeout: EXEC_OPTS.timeout });
-      this.activeProcesses.set(containerName, child);
+      const killable: Killable = {
+        kill: () => {
+          try {
+            child.kill('SIGTERM');
+            setTimeout(() => {
+              try {
+                if (!child.killed) child.kill('SIGKILL');
+              } catch {}
+            }, 1500);
+          } catch {}
+        },
+      };
+      this.activeProcesses.set(containerName, killable);
 
       const cleanup = () => {
-        if (this.activeProcesses.get(containerName) === child) {
+        if (this.activeProcesses.get(containerName) === killable) {
           this.activeProcesses.delete(containerName);
         }
       };

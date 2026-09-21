@@ -477,12 +477,17 @@ async function bootstrap() {
       repoName?: string;
       branch?: string;
       localPath?: string;
+      sshTarget?: string;
       rebuildCommand?: RebuildCommand;
       autoDeploy?: boolean;
     };
     if (!body?.repoOwner || !body?.repoName) {
       reply.status(400);
       return { success: false, message: 'repoOwner and repoName are required' };
+    }
+    if (body.sshTarget && !terminalService.getTargetNames().includes(body.sshTarget)) {
+      reply.status(400);
+      return { success: false, message: `Unknown SSH target "${body.sshTarget}"` };
     }
     const record = await gitProjectsService.register(
       containerName,
@@ -491,7 +496,8 @@ async function bootstrap() {
       body.branch || 'main',
       body.localPath,
       body.rebuildCommand,
-      body.autoDeploy
+      body.autoDeploy,
+      body.sshTarget
     );
     auditLogService.log('git', 'info', `Tracked ${containerName} (${body.repoOwner}/${body.repoName})`, { actor: actorFor(request) });
     return { success: true, project: record };

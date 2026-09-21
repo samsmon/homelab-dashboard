@@ -1,4 +1,4 @@
-import React, { useMemo, useRef, useState } from 'react';
+import React, { useEffect, useMemo, useRef, useState } from 'react';
 import { createPortal } from 'react-dom';
 import { GitBranch, Search, Trash2, X } from 'lucide-react';
 import { ContainerMetric, GitProjectStatus, RebuildCommand } from '../types.js';
@@ -34,10 +34,19 @@ export const GitProjectModal: React.FC<GitProjectModalProps> = ({
   );
   const [branch, setBranch] = useState(editingProject?.branch ?? 'main');
   const [localPath, setLocalPath] = useState(editingProject?.localPath ?? '');
+  const [sshTarget, setSshTarget] = useState(editingProject?.sshTarget ?? '');
+  const [sshTargets, setSshTargets] = useState<string[]>([]);
   const [rebuildCommand, setRebuildCommand] = useState<RebuildCommand | ''>(editingProject?.rebuildCommand ?? '');
   const [autoDeploy, setAutoDeploy] = useState(editingProject?.autoDeploy ?? false);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
+
+  useEffect(() => {
+    authFetch('/api/ssh-targets')
+      .then((res) => res.json())
+      .then((data: { targets: string[] }) => setSshTargets(data.targets ?? []))
+      .catch(() => {});
+  }, []);
 
   const isEditing = Boolean(editingProject);
   const trackableContainers = containers.filter(
@@ -81,6 +90,7 @@ export const GitProjectModal: React.FC<GitProjectModalProps> = ({
           repoName,
           branch: branch.trim() || 'main',
           localPath: localPath.trim() || undefined,
+          sshTarget: sshTarget || undefined,
           rebuildCommand: rebuildCommand || undefined,
           autoDeploy: rebuildCommand ? autoDeploy : false,
         }),
@@ -121,10 +131,10 @@ export const GitProjectModal: React.FC<GitProjectModalProps> = ({
 
         <div className="space-y-4 p-5 overflow-y-auto flex-1 scrollbar-thin">
           <p className="rounded-lg border border-state-warn/40 bg-state-warn/10 p-3 text-[11.5px] leading-snug text-state-warn">
-            Pull &amp; rebuild only works for projects whose container runs on the same Docker daemon as Homelab
-            Cockpit itself (the primary host). Projects on another configured host or LXC — even one listed below —
-            are not supported yet: the rebuild command always targets this daemon's own Docker socket, never a
-            remote one.
+            Pull &amp; rebuild targets this daemon's own Docker socket by default — that's only correct if the
+            container actually runs there. If it runs on a different machine (a separate Docker host or LXC), pick
+            its SSH target below so the pull and rebuild run over SSH on that host instead. Picking a host in the
+            tab strip above only filters which container you're linking; it doesn't change where the rebuild runs.
           </p>
 
           {hostNames.length > 1 && (
@@ -248,21 +258,47 @@ export const GitProjectModal: React.FC<GitProjectModalProps> = ({
           </div>
 
           <div className="space-y-1.5 border-t border-cockpit-border pt-4">
+            <label htmlFor="git-ssh-target" className="label block">
+              Runs on
+            </label>
+            <select
+              id="git-ssh-target"
+              value={sshTarget}
+              onChange={(e) => setSshTarget(e.target.value)}
+              disabled={isSubmitting}
+              className="field w-full font-mono"
+            >
+              <option value="">This daemon (docker.sock)</option>
+              {sshTargets.map((target) => (
+                <option key={target} value={target}>
+                  {target} (over SSH)
+                </option>
+              ))}
+            </select>
+          </div>
+
+          <div className="space-y-1.5">
             <label htmlFor="git-local-path" className="label block">
               Local path (optional, enables pull &amp; rebuild)
             </label>
             <input
               id="git-local-path"
               type="text"
-              placeholder="myapp"
+              placeholder={sshTarget ? '/home/user/myapp' : 'myapp'}
               value={localPath}
               onChange={(e) => setLocalPath(e.target.value)}
               disabled={isSubmitting}
               className="field w-full"
             />
             <p className="text-[11.5px] text-cockpit-muted">
-              Folder name under your Git Projects root (<code className="font-mono">GIT_PROJECTS_ROOT</code>) —
-              this project's working tree must already exist there.
+              {sshTarget ? (
+                <>Absolute path to this project's working tree on <span className="font-mono">{sshTarget}</span>.</>
+              ) : (
+                <>
+                  Folder name under your Git Projects root (<code className="font-mono">GIT_PROJECTS_ROOT</code>) —
+                  this project's working tree must already exist there.
+                </>
+              )}
             </p>
           </div>
 

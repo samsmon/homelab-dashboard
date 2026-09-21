@@ -27,7 +27,7 @@ export const GitPullInline: React.FC<GitPullInlineProps> = ({ project, onDone })
   const [check, setCheck] = useState<CheckPullResult | null>(null);
   const [pullState, setPullState] = useState<GitPullState | null>(null);
   const [autoScroll, setAutoScroll] = useState(true);
-  const isSelf = project.containerName === 'homelab-cockpit' || project.repoName === 'homelab-dashboard';
+  const isSelf = !project.sshTarget && (project.containerName === 'homelab-cockpit' || project.repoName === 'homelab-dashboard');
   const [isReconnecting, setIsReconnecting] = useState(false);
   const failCountRef = useRef(0);
   

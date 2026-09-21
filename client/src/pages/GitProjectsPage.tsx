@@ -105,6 +105,7 @@ export const GitProjectsPage: React.FC<GitProjectsPageProps> = ({ snapshot, onRe
                         </span>
                         <span className="block truncate font-mono text-[11px] text-cockpit-muted">
                           {project.repoOwner}/{project.repoName}@{project.branch}
+                          {project.sshTarget && ` · ssh:${project.sshTarget}`}
                         </span>
                         {project.autoDeployBlocked && (
                           <span className="block text-[11px] text-state-warn">

@@ -285,6 +285,7 @@ export interface GitProjectStatus {
   repoName: string;
   branch: string;
   localPath?: string;
+  sshTarget?: string;
   rebuildCommand?: RebuildCommand;
   autoDeploy: boolean;
   autoDeployBlocked: boolean;
