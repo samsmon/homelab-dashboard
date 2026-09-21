@@ -6,6 +6,17 @@ This file tracks the activities of all AI agents (Gemini, Claude, etc.) operatin
 ---
 
 ### [2026-09-21 UTC]
+**Agent:** Claude (Fix: Docker stats stream leak on idle)
+**Status:** `[COMPLETED]`
+**Activities Completed:**
+- **Fixed a resource leak introduced by the Fase 2 streaming change:** the earlier switch to persistent `container.stats({stream:true})` connections (`DockerService.ensureStatsStream`) relied on `fetchLiveContainers()` to close a stream once its container stopped running — but that cleanup only runs during a poll tick, and `CollectorService.stopTimer()` (fired when the last WebSocket client disconnects) stops ticking entirely. If monitoring mode was still active when every client disconnected, open stats streams kept receiving data from the Docker daemon indefinitely with no tick left to close them — unlike the old on-demand `stats({stream:false})` design, where zero clients meant zero cost automatically.
+- **Fix:** `DockerService.closeAllStatsStreams()` made public; `CollectorService.stopTimer()` now calls it on every configured host when polling pauses. Streams reopen normally on the next tick if a client reconnects while monitoring is still active.
+- **Found while answering the owner's question** about whether the Fase 1-3 changes actually hold up under real usage — a legitimate "is this really safe" check surfaced a real bug, not a false alarm.
+- **Verification:** `cd server && npx tsc` clean.
+
+---
+
+### [2026-09-21 UTC]
 **Agent:** Claude (Fix: metrics accuracy — host CPU%, disk device-key, per-host demo honesty)
 **Status:** `[COMPLETED]`
 **Activities Completed:**
