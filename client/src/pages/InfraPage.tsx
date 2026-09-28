@@ -21,8 +21,11 @@ import { SslTrackerSection } from '../components/SslTrackerSection.js';
 import { BackupRestoreModal } from '../components/BackupRestoreModal.js';
 import { ImportConfigModal } from '../components/ImportConfigModal.js';
 import { authFetch } from '../utils/api.js';
+import { PerformanceGraph } from '../components/PerformanceGraph.js';
+import { useMetricHistory } from '../context/MetricHistoryContext.js';
 import {
   formatBytes,
+  formatNetworkRate,
   formatUptime,
   redactText,
   getStatusColor,
@@ -184,6 +187,7 @@ export const BackupPanel: React.FC<{
 };
 
 export const InfraPage: React.FC<InfraPageProps> = ({ snapshot, isPrivacyMode, onOpenPruneModal }) => {
+  const { history } = useMetricHistory();
   const [view, setView] = useState<InfraCategory>('overview');
   const [backupStatus, setBackupStatus] = useState<BackupStatus | null>(null);
   const [isBackupRunning, setIsBackupRunning] = useState(false);
@@ -640,6 +644,70 @@ export const InfraPage: React.FC<InfraPageProps> = ({ snapshot, isPrivacyMode, o
       {/* 4. PERFORMANCE: Host Detail Panels & Disk Performance Panel */}
       {view === 'performance' && (
         <div className="space-y-4 animate-fade-in">
+          {/* Proxmox & Host Hardware Telemetry Waveforms */}
+          <div className="space-y-3">
+            <div className="flex items-center justify-between px-1">
+              <div className="flex items-center gap-2">
+                <Activity className="h-4 w-4 text-cockpit-accent" />
+                <h3 className="text-[14px] font-bold text-cockpit-text tracking-tight">
+                  Proxmox &amp; Host Vitals Timeline
+                </h3>
+                <span className="pill pill-neutral font-mono text-[10.5px]">60s Live Rolling</span>
+              </div>
+            </div>
+
+            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
+              <PerformanceGraph
+                title="Hypervisor CPU"
+                subtitle="Proxmox VE Host"
+                data={history.map((p) => p.pveCpu)}
+                secondaryData={history.map((p) => p.dockerCpu)}
+                secondaryLabel="LXC"
+                tone="accent"
+                secondaryTone="cyan"
+                maxScale={100}
+                height={150}
+                valueFormatter={(v) => `${v.toFixed(1)}%`}
+                secondaryFormatter={(v) => `${v.toFixed(1)}%`}
+              />
+              <PerformanceGraph
+                title="Host Memory"
+                subtitle="Proxmox RAM allocation"
+                data={history.map((p) => p.pveRam)}
+                secondaryData={history.map((p) => p.dockerRam)}
+                secondaryLabel="LXC"
+                tone="purple"
+                secondaryTone="accent"
+                maxScale={100}
+                height={150}
+                valueFormatter={(v) => `${v.toFixed(1)}%`}
+                secondaryFormatter={(v) => `${v.toFixed(1)}%`}
+              />
+              <PerformanceGraph
+                title="Network Traffic"
+                subtitle="Fleet I/O Bandwidth"
+                data={history.map((p) => p.netRxRate)}
+                secondaryData={history.map((p) => p.netTxRate)}
+                secondaryLabel="TX"
+                tone="cyan"
+                secondaryTone="accent"
+                maxScale="auto"
+                height={150}
+                valueFormatter={formatNetworkRate}
+                secondaryFormatter={formatNetworkRate}
+              />
+              <PerformanceGraph
+                title="Package Thermal"
+                subtitle="CPU Package Temp"
+                data={history.map((p) => p.temp)}
+                tone={snapshot?.host?.pve?.cpuTempCelsius && snapshot.host.pve.cpuTempCelsius >= 75 ? 'bad' : 'warn'}
+                maxScale={100}
+                height={150}
+                valueFormatter={(v) => `${v.toFixed(1)}°C`}
+              />
+            </div>
+          </div>
+
           <HostDetailPanels host={snapshot?.host} isPrivacyMode={isPrivacyMode} />
           <DiskPerformancePanel storage={snapshot?.storage} />
         </div>

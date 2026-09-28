@@ -5,6 +5,19 @@ This file tracks the activities of all AI agents (Gemini, Claude, etc.) operatin
 
 ---
 
+### [2026-09-28 UTC]
+**Agent:** Antigravity (Feature: Proxmox & Windows Task Manager performance graphs across Overview, Fleet, and Infra)
+**Status:** `[COMPLETED]`
+**Activities Completed:**
+- **Zero-overhead client-side metric history (`MetricHistoryContext.tsx`):** Maintains a rolling 60-sample time-series buffer in React context. Automatically extracts samples on existing 2-second snapshot ticks with 0 added backend polling, 0 additional API requests, and no memory leaks. Preserves history across page transitions (Overview ↔ Fleet ↔ Infra).
+- **Reusable SVG performance graph component (`PerformanceGraph.tsx`):** Windows Task Manager / Proxmox VE inspired Cartesian grid with area gradient fills under curves, single/dual series support (RX vs TX, Proxmox vs LXC), interactive scrubbing crosshairs with timestamp/value tooltip, and auto/fixed scaling.
+- **Overview (`HomePage.tsx` & `HostSummaryTiles.tsx`):** Added live mini waveforms into vitals tiles + full Node Performance Timeline section with toggleable tabs (All Grid, CPU, Memory, Network, Disk).
+- **Fleet (`ContainerGridSection.tsx`):** Added Fleet Cluster Performance monitor banner aggregating container CPU, container RAM footprint, and total network throughput over 60s.
+- **Infra (`InfraPage.tsx` & `DiskPerformancePanel.tsx`):** Added Proxmox & Host Vitals Timeline in the Performance tab, and upgraded DiskPerformancePanel with Task Manager grid and interactive scrubbing.
+- **Verification:** `npx --workspace=client tsc -b`, `npx --workspace=client vite build`, and `npx --workspace=server tsc` all pass with 0 errors.
+
+---
+
 ### [2026-09-21 UTC]
 **Agent:** Claude (Feature: real SSL cert checks; fix: hardcoded values in Sentinel bot)
 **Status:** `[COMPLETED]`

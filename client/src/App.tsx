@@ -23,6 +23,7 @@ import { LegacyLayout } from './layouts/LegacyLayout.js';
 // Lazy-loaded: xterm.js is heavy and only needed by owners who use SSH.
 const TerminalPage = lazy(() => import('./pages/TerminalPage.js').then((m) => ({ default: m.TerminalPage })));
 import { ContainerMetric } from './types.js';
+import { MetricHistoryProvider } from './context/MetricHistoryContext.js';
 
 function CockpitDashboard() {
   const { isAuthenticated, isLoading } = useAuth();
@@ -129,53 +130,55 @@ function CockpitDashboard() {
   );
 
   return (
-    <div>
-      <Routes>
-        <Route path="/" element={<LegacyLayout {...layoutProps} />}>
-          <Route index element={<HomePage snapshot={snapshot} throughput={throughput} isPrivacyMode={isPrivacyMode} />} />
-          {PageRoutes()}
-        </Route>
-        
-        {/* Fallback */}
-        <Route path="*" element={<Navigate to="/" replace />} />
-      </Routes>
+    <MetricHistoryProvider snapshot={snapshot}>
+      <div>
+        <Routes>
+          <Route path="/" element={<LegacyLayout {...layoutProps} />}>
+            <Route index element={<HomePage snapshot={snapshot} throughput={throughput} isPrivacyMode={isPrivacyMode} />} />
+            {PageRoutes()}
+          </Route>
+          
+          {/* Fallback */}
+          <Route path="*" element={<Navigate to="/" replace />} />
+        </Routes>
 
-      <CommandPalette
-        isOpen={isCommandPaletteOpen}
-        onClose={() => setIsCommandPaletteOpen(false)}
-        containers={snapshot?.containers}
-        isPrivacyMode={isPrivacyMode}
-      />
-
-      {activeLogContainer && (
-        <LogModal container={activeLogContainer} onClose={() => setActiveLogContainer(null)} />
-      )}
-
-      {activeRestartContainer && (
-        <RestartModal
-          container={activeRestartContainer}
-          action={activePowerAction}
-          onClose={() => setActiveRestartContainer(null)}
-          onSuccess={() => refetch()}
+        <CommandPalette
+          isOpen={isCommandPaletteOpen}
+          onClose={() => setIsCommandPaletteOpen(false)}
+          containers={snapshot?.containers}
+          isPrivacyMode={isPrivacyMode}
         />
-      )}
 
-      {isPruneModalOpen && (
-        <PruneModal
-          hygiene={snapshot?.dockerHygiene}
-          onClose={() => setIsPruneModalOpen(false)}
-          onSuccess={() => refetch()}
-        />
-      )}
+        {activeLogContainer && (
+          <LogModal container={activeLogContainer} onClose={() => setActiveLogContainer(null)} />
+        )}
 
-      {activePinContainer && (
-        <PinDomainModal
-          container={activePinContainer}
-          onClose={() => setActivePinContainer(null)}
-          onSaved={() => refetch()}
-        />
-      )}
-    </div>
+        {activeRestartContainer && (
+          <RestartModal
+            container={activeRestartContainer}
+            action={activePowerAction}
+            onClose={() => setActiveRestartContainer(null)}
+            onSuccess={() => refetch()}
+          />
+        )}
+
+        {isPruneModalOpen && (
+          <PruneModal
+            hygiene={snapshot?.dockerHygiene}
+            onClose={() => setIsPruneModalOpen(false)}
+            onSuccess={() => refetch()}
+          />
+        )}
+
+        {activePinContainer && (
+          <PinDomainModal
+            container={activePinContainer}
+            onClose={() => setActivePinContainer(null)}
+            onSaved={() => refetch()}
+          />
+        )}
+      </div>
+    </MetricHistoryProvider>
   );
 }
 

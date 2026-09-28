@@ -2,7 +2,7 @@ import React, { useEffect, useState } from 'react';
 import { HardDrive } from 'lucide-react';
 import { StorageItem } from '../types.js';
 import { formatBytes, formatNetworkRate } from '../utils/formatters.js';
-import { DiskActivityGraph } from './DiskActivityGraph.js';
+import { PerformanceGraph } from './PerformanceGraph.js';
 
 interface DiskPerformancePanelProps {
   storage: StorageItem[] | undefined;
@@ -99,8 +99,16 @@ export const DiskPerformancePanel: React.FC<DiskPerformancePanelProps> = ({ stor
               </div>
             </div>
 
-            <div className="rounded-lg border border-cockpit-border bg-cockpit-bg p-3">
-              <DiskActivityGraph data={selected.sparklineActiveTime ?? []} width={800} height={220} />
+            <div>
+              <PerformanceGraph
+                title={`${selected.label} Active Time History`}
+                subtitle={`${selected.mount} · Windows Task Manager Grid`}
+                data={selected.sparklineActiveTime ?? []}
+                tone="warn"
+                maxScale={100}
+                height={200}
+                valueFormatter={(v) => `${v.toFixed(0)}%`}
+              />
             </div>
 
             <p className="font-mono text-[11px] text-cockpit-muted">

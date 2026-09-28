@@ -25,6 +25,8 @@ import { ContainerMetric, CockpitSnapshot } from '../types.js';
 import { Sparkline } from './Sparkline.js';
 import { formatBytes, formatNetworkRate, redactText, getStatusColor } from '../utils/formatters.js';
 import { PowerAction } from './RestartModal.js';
+import { PerformanceGraph } from './PerformanceGraph.js';
+import { useMetricHistory } from '../context/MetricHistoryContext.js';
 
 interface ContainerGridSectionProps {
   snapshot?: CockpitSnapshot | null;
@@ -166,6 +168,9 @@ export const ContainerGridSection: React.FC<ContainerGridSectionProps> = ({
       setSelectedHost(hostNames[0]);
     }
   }, [hostNames, selectedHost]);
+
+  const { history } = useMetricHistory();
+  const [showFleetGraphs, setShowFleetGraphs] = useState(true);
 
   // Live container metrics monitoring (on-demand, 5m auto-stop)
   const [isMonitoring, setIsMonitoring] = useState(false);
@@ -506,6 +511,64 @@ export const ContainerGridSection: React.FC<ContainerGridSectionProps> = ({
             );
           })}
         </div>
+      </div>
+
+      {/* Fleet Cluster Performance Timeline (Proxmox / Task Manager Style) */}
+      <div className="space-y-3">
+        <div className="flex items-center justify-between px-1">
+          <div className="flex items-center gap-2">
+            <Activity className="h-4 w-4 text-cockpit-accent" />
+            <h3 className="text-[14px] font-bold text-cockpit-text tracking-tight">
+              Fleet Cluster Performance
+            </h3>
+            <span className="pill pill-neutral font-mono text-[10.5px]">
+              {filteredContainers.filter((c) => c.state === 'running').length} active containers
+            </span>
+          </div>
+          <button
+            type="button"
+            onClick={() => setShowFleetGraphs(!showFleetGraphs)}
+            className="text-[11.5px] font-mono text-cockpit-muted hover:text-cockpit-text transition-colors"
+          >
+            {showFleetGraphs ? 'Hide Graphs' : 'Show Graphs'}
+          </button>
+        </div>
+
+        {showFleetGraphs && (
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+            <PerformanceGraph
+              title="Fleet Aggregate CPU"
+              subtitle="Combined container CPU load"
+              data={history.map((p) => p.fleetCpu)}
+              tone="accent"
+              maxScale="auto"
+              height={145}
+              valueFormatter={(v) => `${v.toFixed(1)}%`}
+            />
+            <PerformanceGraph
+              title="Fleet Aggregate Memory"
+              subtitle="Total container RAM footprint"
+              data={history.map((p) => p.fleetMemBytes / (1024 * 1024))}
+              tone="purple"
+              maxScale="auto"
+              height={145}
+              valueFormatter={(v) => `${v >= 1024 ? (v / 1024).toFixed(1) + ' GB' : v.toFixed(0) + ' MB'}`}
+            />
+            <PerformanceGraph
+              title="Fleet Network I/O"
+              subtitle="Inbound RX & Outbound TX"
+              data={history.map((p) => p.netRxRate)}
+              secondaryData={history.map((p) => p.netTxRate)}
+              secondaryLabel="TX"
+              tone="cyan"
+              secondaryTone="accent"
+              maxScale="auto"
+              height={145}
+              valueFormatter={formatNetworkRate}
+              secondaryFormatter={formatNetworkRate}
+            />
+          </div>
+        )}
       </div>
 
       {/* Main Containers Section for Selected Host */}
