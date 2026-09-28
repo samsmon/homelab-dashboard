@@ -57,10 +57,22 @@ export const MetricHistoryProvider: React.FC<{
       snapshot.storage?.find((s) => s.activeTimePercent !== undefined) ||
       snapshot.storage?.[0];
 
-    const fleetCpu = containers.reduce((sum, c) => sum + (c.cpuPercent || 0), 0);
-    const fleetMemBytes = containers.reduce((sum, c) => sum + (c.memoryBytes || 0), 0);
-    const netRxRate = containers.reduce((sum, c) => sum + (c.networkRxRateBytesPerSec || 0), 0);
-    const netTxRate = containers.reduce((sum, c) => sum + (c.networkTxRateBytesPerSec || 0), 0);
+    const rootAllocations = snapshot.storage?.find((s) => s.allocations)?.allocations || [];
+    const lxcAllocations = rootAllocations.filter((a) => a.type === 'lxc');
+
+    const rawFleetCpu = containers.reduce((sum, c) => sum + (c.cpuPercent || 0), 0);
+    const rawFleetMem = containers.reduce((sum, c) => sum + (c.memoryBytes || 0), 0);
+    const rawNetRx = containers.reduce((sum, c) => sum + (c.networkRxRateBytesPerSec || 0), 0);
+    const rawNetTx = containers.reduce((sum, c) => sum + (c.networkTxRateBytesPerSec || 0), 0);
+
+    // If container-level CPU/Mem is not actively streaming (0), fallback to Proxmox LXC telemetry sum
+    const pveLxcCpuSum = lxcAllocations.reduce((sum, a) => sum + (a.cpuPercent || 0), 0);
+    const pveLxcMemSum = lxcAllocations.reduce((sum, a) => sum + (a.memUsedBytes || 0), 0);
+
+    const fleetCpu = rawFleetCpu > 0 ? rawFleetCpu : pveLxcCpuSum;
+    const fleetMemBytes = rawFleetMem > 0 ? rawFleetMem : pveLxcMemSum;
+    const netRxRate = rawNetRx;
+    const netTxRate = rawNetTx;
     const runningCount = containers.filter((c) => c.state === 'running').length;
 
     const temp =

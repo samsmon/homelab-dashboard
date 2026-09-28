@@ -416,12 +416,32 @@ export const ContainerGridSection: React.FC<ContainerGridSectionProps> = ({
             const isSelected = selectedHost === host;
             const isConnected = snapshot?.dockerHosts?.find((d) => d.name === host)?.connected ?? true;
 
-            // Approximate host cpu / ram if primary host
+            // Check if Proxmox has telemetry for this host/LXC
+            const rootAllocations = snapshot?.storage?.find((s) => s.allocations)?.allocations || [];
+            const lxcAlloc = rootAllocations.find((a) => {
+              if (a.type !== 'lxc') return false;
+              const cleanHost = host.toLowerCase().replace(/[-_]hosts?$/, '');
+              const cleanName = a.name.toLowerCase();
+              return cleanName.includes(cleanHost) || (host === 'docker-host' && a.vmid === '100');
+            });
+
+            // Approximate host cpu / ram: prefer Proxmox LXC telemetry, fallback to primary dockerHostTelemetry or container sums
             const isPrimary = host === dockerHostTelemetry?.hostname || host === 'docker-host';
-            const displayCpu = isPrimary && dockerHostTelemetry ? dockerHostTelemetry.cpuPercent : stats.totalCpu;
-            const displayRamUsed = isPrimary && dockerHostTelemetry ? dockerHostTelemetry.ramUsedBytes : stats.totalRamBytes;
-            const displayRamTotal = isPrimary && dockerHostTelemetry ? dockerHostTelemetry.ramTotalBytes : 32 * 1024 * 1024 * 1024;
-            const ramPercent = Math.min(100, Math.round((displayRamUsed / displayRamTotal) * 100));
+            const displayCpu = lxcAlloc?.cpuPercent !== undefined
+              ? lxcAlloc.cpuPercent
+              : (isPrimary && dockerHostTelemetry ? dockerHostTelemetry.cpuPercent : stats.totalCpu);
+
+            const displayRamUsed = lxcAlloc?.memUsedBytes !== undefined
+              ? lxcAlloc.memUsedBytes
+              : (isPrimary && dockerHostTelemetry ? dockerHostTelemetry.ramUsedBytes : stats.totalRamBytes);
+
+            const displayRamTotal = lxcAlloc?.memTotalBytes !== undefined
+              ? lxcAlloc.memTotalBytes
+              : (isPrimary && dockerHostTelemetry ? dockerHostTelemetry.ramTotalBytes : 32 * 1024 * 1024 * 1024);
+
+            const ramPercent = displayRamTotal > 0
+              ? Math.min(100, Math.round((displayRamUsed / displayRamTotal) * 100))
+              : 0;
 
             return (
               <button

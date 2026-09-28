@@ -223,7 +223,7 @@ export const PerformanceGraph: React.FC<PerformanceGraphProps> = ({
                   textAnchor="end"
                   className="fill-cockpit-muted text-[9.5px] font-mono tabular-nums"
                 >
-                  {valueFormatter(labelVal).replace(/[^0-9.KMGT%°C]/g, '')}
+                  {valueFormatter(labelVal).replace(/[^0-9.KMGTB%°C\/s]/g, '')}
                 </text>
               </g>
             );

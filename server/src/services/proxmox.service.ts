@@ -151,58 +151,84 @@ export class ProxmoxService {
         content: 'rootdir,images',
       };
 
-      // Match LXC allocations
-      const lxc100 = lxcs?.find((c: any) => String(c.vmid) === '100');
-      const lxc101 = lxcs?.find((c: any) => String(c.vmid) === '101');
-
-      // LXC 100: docker-host (150 GB allocated)
-      const lxc100Allocated = lxc100?.maxdisk || 150 * 1024 * 1024 * 1024;
-      const lxc100Used = localLxcRootUsage?.used || lxc100?.disk || 46091173888;
-
-      // LXC 101: apps-host (30 GB allocated)
-      const lxc101Allocated = lxc101?.maxdisk || 30 * 1024 * 1024 * 1024;
-      const lxc101Used = lxc101?.disk || 6012954240;
-
       // PVE host local
       const pveHostAllocated = localPool.totalBytes || 32212254720;
       const pveHostUsed = localPool.usedBytes || 8808038400;
 
-      const allocations: StorageAllocationItem[] = [
-        {
-          id: 'alloc_pve_local',
-          name: 'PVE Host (local)',
-          type: 'pve-host',
-          allocatedBytes: pveHostAllocated,
-          usedBytes: pveHostUsed,
-          freeBytes: Math.max(0, pveHostAllocated - pveHostUsed),
-          usedPercent: Number(((pveHostUsed / pveHostAllocated) * 100).toFixed(1)),
-          shareOfDiskPercent: Number(((pveHostAllocated / physicalDiskSize) * 100).toFixed(1)),
-        },
+      const pveHostAlloc: StorageAllocationItem = {
+        id: 'alloc_pve_local',
+        name: 'PVE Host (local)',
+        type: 'pve-host',
+        allocatedBytes: pveHostAllocated,
+        usedBytes: pveHostUsed,
+        freeBytes: Math.max(0, pveHostAllocated - pveHostUsed),
+        usedPercent: Number(((pveHostUsed / pveHostAllocated) * 100).toFixed(1)),
+        shareOfDiskPercent: Number(((pveHostAllocated / physicalDiskSize) * 100).toFixed(1)),
+      };
+
+      // Dynamically map all LXC containers returned by Proxmox API
+      const lxcAllocations: StorageAllocationItem[] = (lxcs || []).map((c: any) => {
+        const vmid = String(c.vmid);
+        const name = c.name || `LXC ${vmid}`;
+        const isCurrentLxc100 = vmid === '100';
+        const allocatedBytes = c.maxdisk || 30 * 1024 * 1024 * 1024;
+        const usedBytes = (isCurrentLxc100 && localLxcRootUsage?.used) ? localLxcRootUsage.used : (c.disk || 0);
+        const freeBytes = Math.max(0, allocatedBytes - usedBytes);
+        const usedPercent = allocatedBytes > 0 ? Number(((usedBytes / allocatedBytes) * 100).toFixed(1)) : 0;
+        const shareOfDiskPercent = physicalDiskSize > 0 ? Number(((allocatedBytes / physicalDiskSize) * 100).toFixed(1)) : 0;
+
+        const cpuPercent = c.cpu !== undefined ? Number((c.cpu * 100).toFixed(1)) : undefined;
+        const memUsedBytes = c.mem || 0;
+        const memTotalBytes = c.maxmem || 1;
+        const memPercent = memTotalBytes > 0 ? Number(((memUsedBytes / memTotalBytes) * 100).toFixed(1)) : 0;
+
+        return {
+          id: `alloc_lxc_${vmid}`,
+          name: `LXC ${vmid}: ${name}`,
+          type: 'lxc',
+          vmid,
+          status: c.status,
+          allocatedBytes,
+          usedBytes,
+          freeBytes,
+          usedPercent,
+          shareOfDiskPercent,
+          cpuPercent,
+          memUsedBytes,
+          memTotalBytes,
+          memPercent,
+        };
+      });
+
+      // Sort by VMID
+      lxcAllocations.sort((a, b) => Number(a.vmid || 0) - Number(b.vmid || 0));
+
+      const defaultFallbackLxc: StorageAllocationItem[] = [
         {
           id: 'alloc_lxc_100',
           name: 'LXC 100: docker-host',
           type: 'lxc',
           vmid: '100',
-          allocatedBytes: lxc100Allocated,
-          usedBytes: lxc100Used,
-          freeBytes: Math.max(0, lxc100Allocated - lxc100Used),
-          usedPercent: Number(((lxc100Used / lxc100Allocated) * 100).toFixed(1)),
-          shareOfDiskPercent: Number(((lxc100Allocated / physicalDiskSize) * 100).toFixed(1)),
-        },
-        {
-          id: 'alloc_lxc_101',
-          name: 'LXC 101: apps-host',
-          type: 'lxc',
-          vmid: '101',
-          allocatedBytes: lxc101Allocated,
-          usedBytes: lxc101Used,
-          freeBytes: Math.max(0, lxc101Allocated - lxc101Used),
-          usedPercent: Number(((lxc101Used / lxc101Allocated) * 100).toFixed(1)),
-          shareOfDiskPercent: Number(((lxc101Allocated / physicalDiskSize) * 100).toFixed(1)),
+          allocatedBytes: 150 * 1024 * 1024 * 1024,
+          usedBytes: localLxcRootUsage?.used || 46091173888,
+          freeBytes: 104 * 1024 * 1024 * 1024,
+          usedPercent: 30.7,
+          shareOfDiskPercent: 58.6,
         },
       ];
 
-      const totalUsedBytes = pveHostUsed + (localLvmPool.usedBytes || (lxc100Used + lxc101Used));
+      const allocations: StorageAllocationItem[] = [
+        pveHostAlloc,
+        ...(lxcAllocations.length > 0 ? lxcAllocations : defaultFallbackLxc),
+      ];
+
+      const lxcAllocatedTotal = (lxcAllocations.length > 0 ? lxcAllocations : defaultFallbackLxc)
+        .reduce((sum, item) => sum + item.allocatedBytes, 0);
+
+      const lxcUsedTotal = (lxcAllocations.length > 0 ? lxcAllocations : defaultFallbackLxc)
+        .reduce((sum, item) => sum + item.usedBytes, 0);
+
+      const totalUsedBytes = pveHostUsed + (localLvmPool.usedBytes || lxcUsedTotal);
       const totalFreeBytes = Math.max(0, physicalDiskSize - totalUsedBytes);
       const usedPercent = Number(((totalUsedBytes / physicalDiskSize) * 100).toFixed(1));
 
@@ -222,7 +248,7 @@ export class ProxmoxService {
         usedBytes: totalUsedBytes,
         freeBytes: totalFreeBytes,
         usedPercent,
-        allocatedBytes: pveHostAllocated + lxc100Allocated + lxc101Allocated,
+        allocatedBytes: pveHostAllocated + lxcAllocatedTotal,
       };
     } catch (err: any) {
       console.warn(`[ProxmoxService] Storage vitals fetch failed: ${err.message}. Using simulated fallback.`);

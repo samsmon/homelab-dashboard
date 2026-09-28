@@ -10,11 +10,10 @@ This file tracks the activities of all AI agents (Gemini, Claude, etc.) operatin
 **Status:** `[COMPLETED]`
 **Activities Completed:**
 - **Zero-overhead client-side metric history (`MetricHistoryContext.tsx`):** Maintains a rolling 60-sample time-series buffer in React context. Automatically extracts samples on existing 2-second snapshot ticks with 0 added backend polling, 0 additional API requests, and no memory leaks. Preserves history across page transitions (Overview ↔ Fleet ↔ Infra).
-- **Reusable SVG performance graph component (`PerformanceGraph.tsx`):** Windows Task Manager / Proxmox VE inspired Cartesian grid with area gradient fills under curves, single/dual series support (RX vs TX, Proxmox vs LXC), interactive scrubbing crosshairs with timestamp/value tooltip, and auto/fixed scaling.
-- **Overview (`HomePage.tsx` & `HostSummaryTiles.tsx`):** Added live mini waveforms into vitals tiles + full Node Performance Timeline section with toggleable tabs (All Grid, CPU, Memory, Network, Disk).
-- **Fleet (`ContainerGridSection.tsx`):** Added Fleet Cluster Performance monitor banner aggregating container CPU, container RAM footprint, and total network throughput over 60s.
-- **Infra (`InfraPage.tsx` & `DiskPerformancePanel.tsx`):** Added Proxmox & Host Vitals Timeline in the Performance tab, and upgraded DiskPerformancePanel with Task Manager grid and interactive scrubbing.
-- **Verification:** `npx --workspace=client tsc -b`, `npx --workspace=client vite build`, and `npx --workspace=server tsc` all pass with 0 errors.
+- **Reusable SVG performance graph component (`PerformanceGraph.tsx`):** Windows Task Manager / Proxmox VE inspired Cartesian grid with area gradient fills under curves, single/dual series support (RX vs TX, Proxmox vs LXC), interactive scrubbing crosshairs with timestamp/value tooltip, and auto/fixed scaling. Fixed Y-axis regex to preserve units (`B/s`, `KB/s`, `MB/s`).
+- **Dynamic LXC Telemetry across all hosts (`ContainerGridSection.tsx` & `proxmox.service.ts`):** Dynamically maps all running LXC instances from Proxmox API `/nodes/pve/lxc` (100, 101, 102, 103, 104) with real-time CPU, RAM, and storage allocation metrics. Host selector cards now display real-time CPU and RAM percentages across `docker-host`, `yado-hosts`, `personal-hosts`, `dev-host`, and `media-hosts` with zero extra server overhead.
+- **Fleet Graphs fallback:** Metric history seamlessly falls back to Proxmox LXC cluster aggregate telemetry when per-container live monitoring stream is idle, ensuring graphs remain active and responsive.
+- **Verification:** `npx --workspace=server tsc --noEmit` and `npx --workspace=client tsc -b` both pass with 0 errors.
 
 ---
 

@@ -27,6 +27,10 @@ export interface StorageAllocationItem {
   shareOfDiskPercent: number;
   vmid?: string;
   status?: string;
+  cpuPercent?: number;
+  memUsedBytes?: number;
+  memTotalBytes?: number;
+  memPercent?: number;
 }
 
 export interface PvePhysicalDisk {
