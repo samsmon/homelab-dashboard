@@ -1,9 +1,9 @@
 services:
-  homelab-cockpit:
+  homelab-dashboard:
     build:
       context: .
       dockerfile: Dockerfile
-    container_name: homelab-cockpit
+    container_name: homelab-dashboard
     restart: unless-stopped
     env_file:
       - .env
