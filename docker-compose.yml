@@ -21,7 +21,7 @@ services:
       - TAILSCALE_API_KEY=${TAILSCALE_API_KEY:-}
       - TAILSCALE_TAILNET=${TAILSCALE_TAILNET:-}
       - TAILSCALE_SOCKET=/var/run/tailscale/tailscaled.sock
-      - STORAGE_MOUNTS=/,/mnt/hdd-media,/mnt/hdd-cloud,/mnt/hdd-music
+      - STORAGE_MOUNTS=/,/mnt/hdd-media,/mnt/hdd-music,/mnt/hdd-backup
       - POLL_INTERVAL_MS=2000
       - DEMO_MODE=${DEMO_MODE:-false}
       - TELEGRAM_BOT_TOKEN=${TELEGRAM_BOT_TOKEN:-}
@@ -44,7 +44,7 @@ services:
       - /var/run/tailscale:/var/run/tailscale:ro
       # Storage mount points (read-only) for storage capacity matrix
       - /mnt/hdd-media:/mnt/hdd-media:ro
-      - /mnt/hdd-cloud:/mnt/hdd-cloud:ro
+      - /mnt/hdd-backup:/mnt/hdd-backup:ro
       - /mnt/hdd-music:/mnt/hdd-music:ro
       # Git Projects: working trees for pull/rebuild live here on the host,
       # e.g. ${GIT_PROJECTS_ROOT}/myapp. Read-write — git pull writes to it.
