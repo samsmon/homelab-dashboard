@@ -316,7 +316,8 @@ export const ContainerGridSection: React.FC<ContainerGridSectionProps> = ({
   const dockerHostTelemetry = snapshot?.host.dockerHost;
 
   const filteredContainers = useMemo(() => {
-    return containers.filter((c) => {
+    return containers
+      .filter((c) => {
       // Host selection filter
       if (selectedHost && c.dockerHost && c.dockerHost !== selectedHost) {
         return false;
@@ -333,7 +334,9 @@ export const ContainerGridSection: React.FC<ContainerGridSectionProps> = ({
       if (statusFilter === 'exited' && c.state === 'running') return false;
       if (pinnedFilter === 'pinned' && !c.isPinned) return false;
       return true;
-    });
+    })
+      // Fleet is always listed by name (natural order: app2 before app10).
+      .sort((x, y) => x.name.localeCompare(y.name, undefined, { numeric: true, sensitivity: 'base' }));
   }, [containers, selectedHost, search, statusFilter, pinnedFilter]);
 
   const pageCount = Math.max(1, Math.ceil(filteredContainers.length / pageSize));
@@ -800,6 +803,8 @@ export const ContainerGridSection: React.FC<ContainerGridSectionProps> = ({
                   <div className="mt-3.5 flex items-center justify-between border-t border-cockpit-border/60 pt-3">
                     <WebUiMenu container={container} isPrivacyMode={isPrivacyMode} />
                     <div className="flex items-center gap-1.5">
+                      {!container.isExternal && (
+                      <>
                       <button onClick={() => onViewLogs(container)} title="View logs" className="icon-btn p-1.5">
                         <Terminal className="h-3.5 w-3.5" />
                       </button>
@@ -827,6 +832,8 @@ export const ContainerGridSection: React.FC<ContainerGridSectionProps> = ({
                       >
                         <RefreshCw className="h-3.5 w-3.5" />
                       </button>
+                      </>
+                      )}
                     </div>
                   </div>
                 </div>
@@ -966,6 +973,8 @@ export const ContainerGridSection: React.FC<ContainerGridSectionProps> = ({
                         >
                           <Pin className={`h-3.5 w-3.5 ${container.isPinned ? 'fill-current' : ''}`} />
                         </button>
+                        {!container.isExternal && (
+                        <>
                         <button onClick={() => onViewLogs(container)} title="View logs" className="icon-btn">
                           <Terminal className="h-3.5 w-3.5" />
                         </button>
@@ -993,6 +1002,8 @@ export const ContainerGridSection: React.FC<ContainerGridSectionProps> = ({
                         >
                           <RefreshCw className="h-3.5 w-3.5" />
                         </button>
+                        </>
+                        )}
                       </div>
                     </td>
                   </tr>

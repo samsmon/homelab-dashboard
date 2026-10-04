@@ -25,6 +25,31 @@ function parseDockerHosts(raw: string | undefined): DockerHostConfig[] {
     .filter((host) => host.name && host.url);
 }
 
+export interface ServiceProbeConfig {
+  name: string;
+  url: string;
+  host: string;
+}
+
+// "name=url|hostLabel", comma-separated. For services that are not Docker
+// containers (systemd units etc.) and so never show up in the Docker fleet.
+// hostLabel is only the name shown in the Host column/filter; it is optional.
+// e.g. "gamdl-dashboard=http://192.168.18.229:8110|media-hosts"
+function parseServiceProbes(raw: string | undefined): ServiceProbeConfig[] {
+  if (!raw) return [];
+  return raw
+    .split(',')
+    .map((entry) => entry.trim())
+    .filter(Boolean)
+    .map((entry) => {
+      const idx = entry.indexOf('=');
+      const name = idx === -1 ? '' : entry.slice(0, idx).trim();
+      const [url, host] = (idx === -1 ? '' : entry.slice(idx + 1)).split('|').map((s) => s.trim());
+      return { name, url, host: host || 'external' };
+    })
+    .filter((p) => p.name && /^https?:\/\//.test(p.url));
+}
+
 export interface SslDomainConfig {
   host: string;
   port: number;
@@ -120,6 +145,12 @@ export const config = {
   // on the host — docker-compose.yml always bind-mounts it to /projects.
   gitProjectsRoot: '/projects',
   sshTargets: parseSshTargets(process.env.SSH_TARGETS),
+  serviceProbes: parseServiceProbes(process.env.SERVICE_PROBES),
+  // Cheap HTTP checks, but still not worth running on every 2s tick.
+  serviceProbeIntervalMs: parseInt(process.env.SERVICE_PROBE_INTERVAL_MS || '15000', 10),
+  // How often to sample metrics for the graphs while no browser is connected,
+  // so a freshly opened page can be seeded with history instead of starting empty.
+  idleSampleIntervalMs: parseInt(process.env.IDLE_SAMPLE_INTERVAL_MS || '10000', 10),
   // Fixed in-container path, like gitProjectsRoot — docker-compose.yml
   // bind-mounts SSH_PRIVATE_KEY_PATH from the host to here, read-only. One
   // shared key for every target; each target's authorized_keys gets the

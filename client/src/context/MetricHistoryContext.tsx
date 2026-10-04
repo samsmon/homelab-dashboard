@@ -1,24 +1,8 @@
 import React, { createContext, useContext, useEffect, useRef, useState } from 'react';
-import { CockpitSnapshot } from '../types.js';
+import { CockpitSnapshot, MetricHistoryPoint } from '../types.js';
+import { authFetch } from '../utils/api.js';
 
-export interface MetricHistoryPoint {
-  timestamp: number;
-  pveCpu: number;
-  dockerCpu: number;
-  pveRam: number;
-  pveRamBytes: number;
-  dockerRam: number;
-  dockerRamBytes: number;
-  netRxRate: number;
-  netTxRate: number;
-  temp: number;
-  diskActiveTime: number;
-  diskReadRate: number;
-  diskWriteRate: number;
-  fleetCpu: number;
-  fleetMemBytes: number;
-  fleetRunningCount: number;
-}
+export type { MetricHistoryPoint };
 
 interface MetricHistoryContextType {
   history: MetricHistoryPoint[];
@@ -30,7 +14,7 @@ const MetricHistoryContext = createContext<MetricHistoryContextType>({
   latestPoint: null,
 });
 
-const MAX_HISTORY_POINTS = 60; // ~2 minutes at 2s interval
+const MAX_HISTORY_POINTS = 60; // ~2 minutes live at 2s; seeded points may be spaced wider
 
 export const MetricHistoryProvider: React.FC<{
   snapshot: CockpitSnapshot | null;
@@ -39,72 +23,37 @@ export const MetricHistoryProvider: React.FC<{
   const [history, setHistory] = useState<MetricHistoryPoint[]>([]);
   const lastTimestampRef = useRef<number>(0);
 
+  // Seed from the server's ring buffer so the graphs are populated on first paint
+  // instead of filling up one point per tick. Live points that arrived before the
+  // response are kept (merged by timestamp).
   useEffect(() => {
-    if (!snapshot) return;
-
-    // Avoid duplicate points if snapshot reference updates without metric changes
-    const now = Date.now();
-    if (now - lastTimestampRef.current < 800) {
-      return;
-    }
-    lastTimestampRef.current = now;
-
-    const pve = snapshot.host?.pve;
-    const dockerHost = snapshot.host?.dockerHost;
-    const containers = snapshot.containers || [];
-    const primaryDisk =
-      snapshot.storage?.find((s) => s.isPhysicalRoot) ||
-      snapshot.storage?.find((s) => s.activeTimePercent !== undefined) ||
-      snapshot.storage?.[0];
-
-    const rootAllocations = snapshot.storage?.find((s) => s.allocations)?.allocations || [];
-    const lxcAllocations = rootAllocations.filter((a) => a.type === 'lxc');
-
-    const rawFleetCpu = containers.reduce((sum, c) => sum + (c.cpuPercent || 0), 0);
-    const rawFleetMem = containers.reduce((sum, c) => sum + (c.memoryBytes || 0), 0);
-    const rawNetRx = containers.reduce((sum, c) => sum + (c.networkRxRateBytesPerSec || 0), 0);
-    const rawNetTx = containers.reduce((sum, c) => sum + (c.networkTxRateBytesPerSec || 0), 0);
-
-    // If container-level CPU/Mem is not actively streaming (0), fallback to Proxmox LXC telemetry sum
-    const pveLxcCpuSum = lxcAllocations.reduce((sum, a) => sum + (a.cpuPercent || 0), 0);
-    const pveLxcMemSum = lxcAllocations.reduce((sum, a) => sum + (a.memUsedBytes || 0), 0);
-
-    const fleetCpu = rawFleetCpu > 0 ? rawFleetCpu : pveLxcCpuSum;
-    const fleetMemBytes = rawFleetMem > 0 ? rawFleetMem : pveLxcMemSum;
-    const netRxRate = rawNetRx;
-    const netTxRate = rawNetTx;
-    const runningCount = containers.filter((c) => c.state === 'running').length;
-
-    const temp =
-      pve?.cpuTempCelsius ??
-      dockerHost?.thermalThrottle?.packageTempCelsius ??
-      45;
-
-    const newPoint: MetricHistoryPoint = {
-      timestamp: now,
-      pveCpu: pve?.cpuPercent ?? dockerHost?.cpuPercent ?? 0,
-      dockerCpu: dockerHost?.cpuPercent ?? 0,
-      pveRam: pve?.ramPercent ?? dockerHost?.ramPercent ?? 0,
-      pveRamBytes: pve?.ramUsedBytes ?? dockerHost?.ramUsedBytes ?? 0,
-      dockerRam: dockerHost?.ramPercent ?? 0,
-      dockerRamBytes: dockerHost?.ramUsedBytes ?? 0,
-      netRxRate,
-      netTxRate,
-      temp,
-      diskActiveTime: primaryDisk?.activeTimePercent ?? 0,
-      diskReadRate: primaryDisk?.readRateBytesPerSec ?? 0,
-      diskWriteRate: primaryDisk?.writeRateBytesPerSec ?? 0,
-      fleetCpu,
-      fleetMemBytes,
-      fleetRunningCount: runningCount,
+    let cancelled = false;
+    authFetch(`/api/metrics/history?limit=${MAX_HISTORY_POINTS}`)
+      .then((res) => (res.ok ? res.json() : []))
+      .then((seed: MetricHistoryPoint[]) => {
+        if (cancelled || !Array.isArray(seed) || seed.length === 0) return;
+        setHistory((prev) => {
+          const firstLive = prev[0]?.timestamp ?? Infinity;
+          const merged = [...seed.filter((p) => p.timestamp < firstLive), ...prev];
+          return merged.slice(-MAX_HISTORY_POINTS);
+        });
+      })
+      .catch(() => {});
+    return () => {
+      cancelled = true;
     };
+  }, []);
+
+  useEffect(() => {
+    // The server computes the point (see MetricHistoryService) and ships it with every snapshot.
+    const point = snapshot?.metricPoint;
+    if (!point || point.timestamp <= lastTimestampRef.current) return;
+    lastTimestampRef.current = point.timestamp;
 
     setHistory((prev) => {
-      const next = [...prev, newPoint];
-      if (next.length > MAX_HISTORY_POINTS) {
-        return next.slice(next.length - MAX_HISTORY_POINTS);
-      }
-      return next;
+      if (prev.length > 0 && point.timestamp <= prev[prev.length - 1].timestamp) return prev;
+      const next = [...prev, point];
+      return next.length > MAX_HISTORY_POINTS ? next.slice(next.length - MAX_HISTORY_POINTS) : next;
     });
   }, [snapshot]);
 

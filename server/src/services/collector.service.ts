@@ -6,7 +6,9 @@ import { TailscaleService } from './tailscale.service.js';
 import { SslService } from './ssl.service.js';
 import { PinsService } from './pins.service.js';
 import { GitProjectsService } from './git-projects.service.js';
-import { CockpitSnapshot, SentinelStatus, DockerHostSummary, AppVersionInfo, StorageItem } from '../types.js';
+import { ServiceProbeService } from './service-probe.service.js';
+import { MetricHistoryService } from './metric-history.service.js';
+import { CockpitSnapshot, SentinelStatus, DockerHostSummary, AppVersionInfo, StorageItem, MetricHistoryPoint } from '../types.js';
 import { auditLogService } from './audit-log.service.js';
 import { config } from '../config.js';
 
@@ -18,6 +20,9 @@ export class CollectorService {
   private sslService: SslService;
   private pinsService: PinsService;
   private gitProjectsService: GitProjectsService;
+  private serviceProbeService: ServiceProbeService;
+  private metricHistoryService: MetricHistoryService;
+  private idleTimer: NodeJS.Timeout | null = null;
   private getSentinelStatus?: () => SentinelStatus | undefined;
   private getAppVersion?: () => AppVersionInfo | undefined;
   private getPrimaryNodeName?: () => string | undefined;
@@ -50,6 +55,8 @@ export class CollectorService {
     sslService: SslService,
     pinsService: PinsService,
     gitProjectsService: GitProjectsService,
+    serviceProbeService: ServiceProbeService,
+    metricHistoryService: MetricHistoryService,
     getSentinelStatus?: () => SentinelStatus | undefined,
     getAppVersion?: () => AppVersionInfo | undefined,
     getPrimaryNodeName?: () => string | undefined
@@ -61,14 +68,28 @@ export class CollectorService {
     this.sslService = sslService;
     this.pinsService = pinsService;
     this.gitProjectsService = gitProjectsService;
+    this.serviceProbeService = serviceProbeService;
+    this.metricHistoryService = metricHistoryService;
     this.getSentinelStatus = getSentinelStatus;
     this.getAppVersion = getAppVersion;
     this.getPrimaryNodeName = getPrimaryNodeName;
   }
 
   public start() {
+    this.serviceProbeService.start();
+
     // Initial snapshot collection at boot
     this.collectAndBroadcast();
+
+    // The 2s timer below only runs while a browser is connected. This slower
+    // sampler fills the history buffer in between, so a page opened cold is
+    // seeded with recent history instead of an empty graph.
+    this.idleTimer = setInterval(() => {
+      if (this.wsClients.size === 0) {
+        this.collect().catch((err) => console.error('[CollectorService] Idle sample failed:', err));
+      }
+    }, config.idleSampleIntervalMs);
+    this.idleTimer.unref();
 
     // Do not run high-frequency polling when 0 clients are connected.
     // Timer will be dynamically started when a client connects and paused when all clients disconnect.
@@ -100,6 +121,10 @@ export class CollectorService {
   }
 
   public stop() {
+    if (this.idleTimer) {
+      clearInterval(this.idleTimer);
+      this.idleTimer = null;
+    }
     this.stopTimer();
   }
 
@@ -197,7 +222,10 @@ export class CollectorService {
     // (see DockerService.getContainers). So "is this snapshot showing demo data" is
     // about the primary host specifically, not "did every configured host succeed."
     const primaryIsLive = perHostResults[0]?.result.isLive ?? false;
-    const allContainers = perHostResults.flatMap(({ result }) => result.containers);
+    const allContainers = [
+      ...perHostResults.flatMap(({ result }) => result.containers),
+      ...this.serviceProbeService.getContainers(),
+    ];
 
     const pins = this.pinsService.getAll();
     const containers = allContainers.map(container => {
@@ -232,6 +260,9 @@ export class CollectorService {
         remainingMs: this.getContainerMonitoringRemainingMs(),
       },
     };
+
+    snapshot.metricPoint = this.metricHistoryService.buildPoint(snapshot);
+    this.metricHistoryService.record(snapshot.metricPoint);
 
     this.lastSnapshot = snapshot;
     return snapshot;
@@ -318,6 +349,10 @@ export class CollectorService {
       }
     }
     return { type: 'SNAPSHOT_DELTA', data };
+  }
+
+  public getMetricHistory(limit: number): MetricHistoryPoint[] {
+    return this.metricHistoryService.getRecent(limit);
   }
 
   public getLastSnapshot(): CockpitSnapshot | null {

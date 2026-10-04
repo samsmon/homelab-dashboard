@@ -224,6 +224,9 @@ export interface ContainerMetric {
   isPinned?: boolean;
   publicUrl?: string;
   dockerHost: string;
+  // True for entries that are not Docker containers (SERVICE_PROBES: systemd
+  // services etc.). Start/stop/restart/logs do not apply to them.
+  isExternal?: boolean;
 }
 
 export interface DockerHostSummary {
@@ -374,6 +377,25 @@ export interface AppVersionInfo {
   buildDate?: string;
 }
 
+export interface MetricHistoryPoint {
+  timestamp: number;
+  pveCpu: number;
+  dockerCpu: number;
+  pveRam: number;
+  pveRamBytes: number;
+  dockerRam: number;
+  dockerRamBytes: number;
+  netRxRate: number;
+  netTxRate: number;
+  temp: number;
+  diskActiveTime: number;
+  diskReadRate: number;
+  diskWriteRate: number;
+  fleetCpu: number;
+  fleetMemBytes: number;
+  fleetRunningCount: number;
+}
+
 export interface CockpitSnapshot {
   timestamp: number;
   host: HostMetrics;
@@ -384,6 +406,7 @@ export interface CockpitSnapshot {
   sslCertificates: SslCertificate[];
   dockerHygiene: DockerDiskHygiene;
   gitProjects: GitProjectStatus[];
+  metricPoint?: MetricHistoryPoint;
   sentinel?: SentinelStatus;
   isDemoMode: boolean;
   appVersion?: AppVersionInfo;

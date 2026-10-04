@@ -21,6 +21,8 @@ import { GitProjectsService, RebuildCommand } from './services/git-projects.serv
 import { BackupService } from './services/backup.service.js';
 import { TerminalService } from './services/terminal.service.js';
 import { CollectorService } from './services/collector.service.js';
+import { ServiceProbeService } from './services/service-probe.service.js';
+import { MetricHistoryService } from './services/metric-history.service.js';
 import { SentinelService } from './services/sentinel.service.js';
 import { AppUpdateService } from './services/app-update.service.js';
 import { AiAgentsService } from './services/ai-agents.service.js';
@@ -73,6 +75,8 @@ async function bootstrap() {
     sslService,
     pinsService,
     gitProjectsService,
+    new ServiceProbeService(),
+    new MetricHistoryService(),
     () => sentinelService?.getStatus(),
     () => appUpdateService.getVersionInfo(),
     () => settingsService.getPrimaryNodeName()
@@ -252,6 +256,11 @@ async function bootstrap() {
       uptime: process.uptime(),
       timestamp: Date.now(),
     };
+  });
+
+  app.get('/api/metrics/history', async (request) => {
+    const { limit } = request.query as { limit?: string };
+    return collectorService.getMetricHistory(parseInt(limit || '60', 10) || 60);
   });
 
   app.get('/api/snapshot', async () => {
