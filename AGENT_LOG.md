@@ -5,6 +5,17 @@ This file tracks the activities of all AI agents (Gemini, Claude, etc.) operatin
 
 ---
 
+### [2026-10-31 UTC] (git-projects)
+**Agent:** Claude (Git projects v2: discover repositories on the servers and show what is really checked out)
+**Status:** `[COMPLETED]`
+**Activities Completed:**
+- **Discovery (`git-discovery.service.ts`):** one SSH exec per target in `config.sshTargets` (minus `GIT_SCAN_SKIP_TARGETS`, default `proxmox`) runs a fixed read-only POSIX script over `GIT_SCAN_ROOTS` (default `/opt,/mnt/homelab_projects`, 3 levels deep): branch, short HEAD, tracked-file changes, last commit date and subject, sanitized origin URL, origin default branch, `git ls-remote` of the current branch (no fetch, nothing in any repository changes), and ahead/behind counts when the remote head is already in the local object store. Results are cached and rescanned every `GIT_SCAN_INTERVAL_MS` (default 5 minutes); a host failure keeps its last good rows and is logged once. A per-repo ignore list lives in `data/git-discovery.json`.
+- **Routes:** `GET /api/git-projects/discovered`, `POST /api/git-projects/scan`, `POST /api/git-projects/ignore`. Demo mode serves sample hosts.
+- **UI:** `GitDiscoverySection.tsx` and `useGitDiscovery.ts` render per-host repositories with chips from observed facts (changed files, branch, update available or N behind, up to date, remote unreachable, no remote), a note when the same repository differs between servers, and hide/unhide. The "Tracked for deploy" list now shows "Not checked yet" instead of a green "Up to date" when GitHub was never queried, drops the endless "checking…" spinner, and flags records whose folder is not found on their host.
+- **Verification:** `tsc --noEmit` clean for client and server; the scan script and the ssh2 service path were run against the live docker-host, yado-hosts, personal-hosts, media-hosts and dev-host with the PC key (8, 4, 6, 2 and 0 repositories); UI checked in demo mode at desktop and 375px (hide/unhide, failed-host message, no overflow). personal-hosts and media-hosts only appear on the server once the dashboard key is authorized there and both are added to `SSH_TARGETS`.
+
+---
+
 ### [2026-10-31 UTC] (logs)
 **Agent:** Claude (Logs v2: detailed Cloudflare entries, system events, filters and export)
 **Status:** `[COMPLETED]`

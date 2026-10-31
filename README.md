@@ -77,6 +77,8 @@ Host machine (Proxmox + Ubuntu Runner)
 
 **Backup, restore, and config import.** Scheduled or on-demand disaster recovery using `rclone sync` to configured cloud storage (Nextcloud, Google Drive, etc.). Also supports importing lightweight configs (`pins.json`, `git-projects.json`) directly from public links or archives without modifying owner credentials.
 
+**Git repositories on the servers.** Finds the git repositories on every SSH target and shows what is really checked out there (branch, commit, changed files, whether the remote moved on), read-only.
+
 **Git project deployment.** Track containers built from source against GitHub repositories. Check for incoming commits, inspect diffs for potential database migration risks, and trigger automated pull and rebuild commands (`docker compose up -d --build`).
 
 **Pinned containers & public tunnels.** Pin key containers with custom public domains (e.g. Cloudflare tunnels), persisted across client sessions in `data/pins.json`.

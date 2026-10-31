@@ -1,5 +1,17 @@
 [
   {
+    "id": "2026-10-31-feat-git-projects-v2",
+    "version": "1.6.2",
+    "title": "Git Projects v2: See What Is Really Checked Out on Each Server",
+    "date": "2026-10-31",
+    "description": "The Git projects page now finds the repositories on your servers and shows their real state, instead of relying only on the projects you registered by hand.",
+    "highlights": [
+      "A new On the servers panel lists every repository found on each SSH target with its branch, commit, changed files and whether the remote has moved on, rescanned every 5 minutes or on demand.",
+      "Labels come from what the server observes: changed files, not on the default branch, update available or N behind, up to date, remote unreachable. The same repository at different commits on two servers is called out.",
+      "Hide repositories that are not your projects. Tracked projects no longer show a green Up to date before GitHub has been checked, and records whose folder is missing on their host are flagged."
+    ]
+  },
+  {
     "id": "2026-10-31-feat-logs-v2",
     "version": "1.6.1",
     "title": "Logs v2: Detailed Cloudflare Entries, System Events, Filters and Export",
