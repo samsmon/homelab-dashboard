@@ -1,5 +1,17 @@
 [
   {
+    "id": "2026-10-31-feat-logs-v2",
+    "version": "1.6.1",
+    "title": "Logs v2: Detailed Cloudflare Entries, System Events, Filters and Export",
+    "date": "2026-10-31",
+    "description": "The Logs page now records what happens on its own, not only what you click, and its Cloudflare entries say which tunnel and what changed.",
+    "highlights": [
+      "Cloudflare entries name the tunnel and the action: published, origin changed, moved from one tunnel to another, DNS repaired or removed, and failures say which tunnel.",
+      "System events are logged when status changes: containers that exit, restart, become unhealthy or disappear, Docker hosts going unreachable, Cloudflare tunnels going down or coming back, backup results and dashboard updates.",
+      "Filter by date range and actor, and download the filtered entries as CSV or JSON (exports follow privacy mode)."
+    ]
+  },
+  {
     "id": "2026-10-31-feat-cloudflare-manager-fleet-mobile",
     "version": "1.6.0",
     "title": "Cloudflare Tunnel Manager, Grouped Navigation, Fleet and Mobile Polish",

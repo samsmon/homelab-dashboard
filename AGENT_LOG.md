@@ -5,6 +5,17 @@ This file tracks the activities of all AI agents (Gemini, Claude, etc.) operatin
 
 ---
 
+### [2026-10-31 UTC] (logs)
+**Agent:** Claude (Logs v2: detailed Cloudflare entries, system events, filters and export)
+**Status:** `[COMPLETED]`
+**Activities Completed:**
+- **Cloudflare entries:** `publish()` now returns a `PublishResult` (tunnel name, kind new/update/move/dns, previous tunnel, DNS action) and `unpublish()` returns the tunnel name, so the audit log says which tunnel and what happened ("Moved X from tunnel A to B"). Failures name the tunnel; the request goes in `detail`.
+- **System events:** `CollectorService.logContainerTransitions()` diffs container state and health per Docker host on the existing snapshot tick (baseline on the first observation, skipped while a host is unreachable, three entries a minute per container before a flapping notice). Docker host reachability changes are logged as `system`. A tunnel watcher in `index.ts` polls the Cloudflare tunnel list every 2 minutes (only when configured) and logs status changes. Backup and restore results (`BackupService`) and dashboard update start/success/failure (`AppUpdateService`) are logged, plus "Dashboard started" on boot.
+- **Logs page:** date range, actor filter, "Clear filters", and CSV or JSON export of the filtered entries (privacy mode applies to exports).
+- **Verification:** `tsc --noEmit` clean for client and server; the container transition logic was exercised with scripted scenarios (baseline, exit, host outage, health flips, removal, appearance, flapping); filters, actor, dates and CSV export checked in the browser at desktop and 375px in demo mode. The transition logger, tunnel watcher, backup and update logging were not exercised against the real Docker hosts, the real Cloudflare API, rclone or the update runner before deploy.
+
+---
+
 ### [2026-10-31 UTC] (fix)
 **Agent:** Claude (Fix: Cloudflare hostname move order)
 **Status:** `[COMPLETED]`

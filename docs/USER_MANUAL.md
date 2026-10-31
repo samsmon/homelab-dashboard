@@ -22,6 +22,7 @@ These pages are reachable from the sidebar on the left or by typing the address 
 | Terminal (`/terminal`) | A real shell to Proxmox or a configured Docker host, over SSH |
 | Sentinel (`/sentinel`) | Telegram companion status and command reference |
 | Cloudflare (`/cloudflare`) | Every tunnel and domain on your Cloudflare account, a map of where each public hostname ends up, and controls to publish, edit, move and remove hostnames |
+| Logs (`/logs`) | The audit trail: what you did in the dashboard, plus events it noticed on its own (containers, Docker hosts, Cloudflare tunnels, backups, updates) |
 | Settings (`/settings`) | Primary node name, light or dark theme, and the login password |
 
 ## Sidebar
@@ -236,6 +237,12 @@ Shows whether the Telegram companion is polling, whether the Gemini key is prese
 - Tier 3 changes state: `/restart <container>` and `/prune`, each requiring `/confirm` within 60 seconds, restricted to a whitelist. `/cancel` aborts.
 
 Messages from any Telegram ID outside the allowlist are ignored without a reply.
+
+## Logs
+
+Every state-changing action and error, newest first, 50 at a time (Show more or Show all). Besides your own actions, the dashboard writes an entry whenever something changes state by itself: a container exits, restarts, turns unhealthy or disappears, a Docker host stops answering, a Cloudflare tunnel goes down or recovers, a backup finishes, or the dashboard starts or updates. Container changes are grouped, so one that keeps restarting writes three entries a minute and then a single note that it is flapping. Cloudflare entries say which tunnel and what changed (published, origin changed, moved from one tunnel to another, DNS repaired, removed).
+
+Filter by text, category, level, actor and date range, and download the filtered entries with **CSV** or **JSON**; with privacy mode on, IPs and hostnames are masked in the download too. The log keeps the latest 5000 entries, and Clear empties it.
 
 ## Settings
 
