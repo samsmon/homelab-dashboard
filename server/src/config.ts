@@ -152,6 +152,16 @@ export const config = {
   // on the host — docker-compose.yml always bind-mounts it to /projects.
   gitProjectsRoot: '/projects',
   sshTargets: parseSshTargets(process.env.SSH_TARGETS),
+  // Git project discovery: which SSH targets to scan, where repositories live on them, and how
+  // often. Roots are restricted to plain absolute paths because they are placed in a shell script.
+  gitScan: {
+    skipTargets: (process.env.GIT_SCAN_SKIP_TARGETS || 'proxmox').split(',').map((v) => v.trim()).filter(Boolean),
+    roots: (process.env.GIT_SCAN_ROOTS || '/opt,/mnt/homelab_projects')
+      .split(',')
+      .map((v) => v.trim())
+      .filter((v) => /^\/[A-Za-z0-9_./-]*$/.test(v)),
+    intervalMs: parseInt(process.env.GIT_SCAN_INTERVAL_MS || '300000', 10),
+  },
   serviceProbes: parseServiceProbes(process.env.SERVICE_PROBES),
   // Cheap HTTP checks, but still not worth running on every 2s tick.
   serviceProbeIntervalMs: parseInt(process.env.SERVICE_PROBE_INTERVAL_MS || '15000', 10),

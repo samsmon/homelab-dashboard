@@ -18,6 +18,7 @@ import { PinsService } from './services/pins.service.js';
 import { BookmarksService } from './services/bookmarks.service.js';
 import { NotificationsService } from './services/notifications.service.js';
 import { GitProjectsService, RebuildCommand } from './services/git-projects.service.js';
+import { GitDiscoveryService } from './services/git-discovery.service.js';
 import { BackupService } from './services/backup.service.js';
 import { TerminalService } from './services/terminal.service.js';
 import { CollectorService } from './services/collector.service.js';
@@ -94,6 +95,7 @@ async function bootstrap() {
   const bookmarksService = new BookmarksService();
   const notificationsService = new NotificationsService();
   const gitProjectsService = new GitProjectsService(notificationsService);
+  const gitDiscoveryService = new GitDiscoveryService();
   const backupService = new BackupService();
   const terminalService = new TerminalService();
   const appUpdateService = new AppUpdateService(notificationsService);
@@ -126,6 +128,7 @@ async function bootstrap() {
   );
 
   collectorService.start();
+  gitDiscoveryService.start();
   sentinelService.start();
   backupService.start();
 
@@ -608,6 +611,24 @@ async function bootstrap() {
     return { success: true };
   });
 
+  app.get('/api/git-projects/discovered', async () => gitDiscoveryService.getResult());
+
+  app.post('/api/git-projects/scan', async () => {
+    await gitDiscoveryService.scanAll();
+    return gitDiscoveryService.getResult();
+  });
+
+  app.post('/api/git-projects/ignore', async (request, reply) => {
+    const body = request.body as { host?: string; path?: string; ignored?: boolean };
+    if (!body?.host || !body?.path || typeof body.ignored !== 'boolean' || !(config.demoMode || config.sshTargets.some((t) => t.name === body.host))) {
+      reply.code(400);
+      return { success: false, message: 'host, path and ignored are required' };
+    }
+    gitDiscoveryService.setIgnored(body.host, body.path, body.ignored);
+    auditLogService.log('git', 'info', `${body.ignored ? 'Hid' : 'Unhid'} repository ${body.host}:${body.path}`, { actor: actorFor(request) });
+    return gitDiscoveryService.getResult();
+  });
+
   app.post('/api/git-projects/refresh', async () => {
     await gitProjectsService.refreshAll();
     return { success: true };
@@ -773,6 +794,7 @@ async function bootstrap() {
   const shutdown = async () => {
     console.log('[Server] Shutting down gracefully...');
     gitProjectsService.stop();
+    gitDiscoveryService.stop();
     sentinelService?.stop();
     backupService.stop();
     collectorService.stop();
