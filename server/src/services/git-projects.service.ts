@@ -91,6 +91,62 @@ export interface PullResult {
   newSha?: string;
 }
 
+function demoProjects(): GitProjectStatus[] {
+  const hoursAgo = (h: number) => new Date(Date.now() - h * 3600_000).toISOString();
+  const base = { branch: 'main', autoDeploy: false, autoDeployBlocked: false, hasUpdate: false };
+  return [
+    {
+      ...base,
+      containerName: 'portfolio',
+      repoOwner: 'example',
+      repoName: 'portfolio',
+      latestSha: 'a1b2c3d',
+      lastKnownSha: 'a1b2c3d',
+      latestCommitMessage: 'fix(ui): tighten hero spacing',
+      latestCommitDate: hoursAgo(5),
+      autoDeploy: true,
+    },
+    {
+      ...base,
+      containerName: 'tabsync',
+      repoOwner: 'example',
+      repoName: 'tabsync',
+      latestSha: 'e4f5a6b',
+      lastKnownSha: 'c7d8e9f',
+      latestCommitMessage: 'feat(api): add sync token rotation',
+      latestCommitDate: hoursAgo(2),
+      hasUpdate: true,
+    },
+    {
+      ...base,
+      containerName: 'gddl',
+      repoOwner: 'example',
+      repoName: 'gddl',
+      sshTarget: 'personal-hosts',
+      latestSha: '1122334',
+      lastKnownSha: '0099887',
+      latestCommitMessage: 'chore(db): add downloads index migration',
+      latestCommitDate: hoursAgo(26),
+      hasUpdate: true,
+      autoDeploy: true,
+      autoDeployBlocked: true,
+    },
+    {
+      ...base,
+      containerName: 'situlah',
+      repoOwner: 'example',
+      repoName: 'situlah',
+      sshTarget: 'yado-hosts',
+      latestSha: '5566778',
+      lastKnownSha: '5566778',
+      latestCommitMessage: 'docs: update setup notes',
+      latestCommitDate: hoursAgo(70),
+      lastPullStatus: 'failed',
+      lastPullMessage: 'docker compose up failed: build step exited with code 1',
+    },
+  ];
+}
+
 export class GitProjectsService {
   private dataDir: string;
   private dbPath: string;
@@ -257,6 +313,9 @@ export class GitProjectsService {
    * when the user triggers 'Refresh to get newest commit version' (refreshAll).
    */
   public getSnapshot(): GitProjectStatus[] {
+    // Demo mode with nothing registered: show sample projects so the page can be explored.
+    // They have no localPath, so the pull and rebuild controls stay disabled.
+    if (config.demoMode && Object.keys(this.db.projects).length === 0) return demoProjects();
     return Object.entries(this.db.projects).map(([containerName, record]) => {
       return {
         containerName,
