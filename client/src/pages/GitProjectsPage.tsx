@@ -6,6 +6,8 @@ import { GitPullInline } from '../components/GitPullInline.js';
 import { authFetch } from '../utils/api.js';
 import { redactText } from '../utils/formatters.js';
 import { StateBlock } from '../components/StateBlock.js';
+import { GitDiscoverySection } from '../components/GitDiscoverySection.js';
+import { useGitDiscovery } from '../hooks/useGitDiscovery.js';
 
 interface GitProjectsPageProps {
   snapshot: CockpitSnapshot | null;
@@ -20,6 +22,7 @@ export const GitProjectsPage: React.FC<GitProjectsPageProps> = ({ snapshot, onRe
   const [isRefreshing, setIsRefreshing] = useState(false);
   const [markingDeployed, setMarkingDeployed] = useState<string | null>(null);
 
+  const discovery = useGitDiscovery();
   const projects = snapshot?.gitProjects ?? [];
   const containers = snapshot?.containers ?? [];
   const isEditModalOpen = isAdding || editingProject !== null;
@@ -49,14 +52,33 @@ export const GitProjectsPage: React.FC<GitProjectsPageProps> = ({ snapshot, onRe
     }
   };
 
+  // A record whose folder was not seen on a host that scanned fine is usually a wrong host or path.
+  const isMissing = (p: GitProjectStatus): boolean => {
+    const host = p.sshTarget ?? 'docker-host';
+    const scan = discovery.data?.hosts.find((h) => h.host === host);
+    if (!scan?.ok) return false;
+    const folder = (p.localPath ?? '').split('/').filter(Boolean).pop();
+    return Boolean(folder) && !scan.repos.some((r) => r.name === folder);
+  };
+
   return (
     <>
+      <GitDiscoverySection
+        discovery={discovery.data}
+        error={discovery.error}
+        isScanning={discovery.isScanning}
+        registered={projects}
+        onScan={discovery.scan}
+        onRetry={discovery.reload}
+        onIgnore={discovery.setIgnored}
+      />
+
       <section className="panel overflow-hidden">
         <div className="panel-head flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
           <div>
-            <h2 className="panel-title">Git projects</h2>
+            <h2 className="panel-title">Tracked for deploy</h2>
             <p className="panel-sub">
-              {projects.length === 0 ? 'Nothing tracked yet' : `${projects.length} tracked`} · click refresh to check for newest commits
+              {projects.length === 0 ? 'Nothing tracked yet' : `${projects.length} tracked`} · pull and rebuild controls; the status below compares with GitHub, not with the server
             </p>
           </div>
           <div className="flex items-center gap-2">
@@ -117,6 +139,11 @@ export const GitProjectsPage: React.FC<GitProjectsPageProps> = ({ snapshot, onRe
                           {project.repoOwner}/{project.repoName}@{project.branch}
                           {project.sshTarget && ` · ssh:${redactText(project.sshTarget, isPrivacyMode)}`}
                         </span>
+                        {isMissing(project) && (
+                          <span className="block text-[11px] text-state-warn">
+                            Not found on {project.sshTarget ?? 'docker-host'}: check the host and folder ({project.localPath})
+                          </span>
+                        )}
                         {project.latestCommitMessage && (
                           <span className="mt-0.5 block truncate text-[12px] text-cockpit-text sm:hidden">{project.latestCommitMessage}</span>
                         )}
@@ -139,10 +166,7 @@ export const GitProjectsPage: React.FC<GitProjectsPageProps> = ({ snapshot, onRe
                           </span>
                         </span>
                       ) : (
-                        <span className="flex items-center gap-1 font-mono text-[11px] text-cockpit-muted">
-                          <RefreshCw className="h-3 w-3 animate-spin" />
-                          checking…
-                        </span>
+                        <span className="font-mono text-[11px] text-cockpit-muted">no commit info yet</span>
                       )}
                       {project.lastPullStatus === 'failed' ? (
                         <div className="flex items-center gap-1.5">
@@ -163,7 +187,7 @@ export const GitProjectsPage: React.FC<GitProjectsPageProps> = ({ snapshot, onRe
                         </div>
                       ) : (
                         <span className={`pill ${project.hasUpdate ? 'pill-warn' : 'pill-neutral'}`}>
-                          {project.hasUpdate ? 'Update available' : project.lastKnownSha ? 'Up to date' : 'Not deployed yet'}
+                          {project.hasUpdate ? 'Update available' : !project.latestSha ? 'Not checked yet' : project.lastKnownSha ? 'Up to date' : 'Not deployed yet'}
                         </span>
                       )}
                       {canMarkDeployed && (

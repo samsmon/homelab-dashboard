@@ -287,6 +287,43 @@ export interface AuditLogEntry {
   createdAt: number;
 }
 
+export interface DiscoveredRepo {
+  host: string;
+  path: string;
+  name: string;
+  branch: string;
+  head: string;
+  headDate?: string;
+  headSubject?: string;
+  /** Tracked files with local changes (untracked files are not counted). */
+  dirty: number;
+  remote?: string;
+  defaultBranch?: string;
+  /** ok: the branch exists on the remote; unreachable: ls-remote failed; no-branch: not on the remote; none: no origin. */
+  remoteState: 'ok' | 'unreachable' | 'no-branch' | 'none';
+  remoteHead?: string;
+  /** Only known when the remote head is already in the local object store. */
+  behind?: number;
+  ahead?: number;
+  hasCompose: boolean;
+  ignored: boolean;
+}
+
+export interface GitHostScan {
+  host: string;
+  ok: boolean;
+  error?: string;
+  scannedAt: number;
+  durationMs: number;
+  repos: DiscoveredRepo[];
+}
+
+export interface GitDiscoveryResult {
+  scannedAt: number | null;
+  scanning: boolean;
+  hosts: GitHostScan[];
+}
+
 export interface GitProjectStatus {
   containerName: string;
   repoOwner: string;
