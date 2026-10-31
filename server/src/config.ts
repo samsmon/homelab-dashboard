@@ -94,7 +94,9 @@ function parseSshTargets(raw: string | undefined): SshTargetConfig[] {
       const [user, host] = userHost.split('@');
       return { name, user, host, port: portStr ? parseInt(portStr, 10) : 22 };
     })
-    .filter((t) => t.name && t.user && t.host);
+    .filter((t) => t.name && t.user && t.host)
+    // A target listed twice (an easy slip when appending to .env) would be scanned twice and shown twice.
+    .filter((t, i, all) => all.findIndex((o) => o.name === t.name) === i);
 }
 
 const primaryDockerHost: DockerHostConfig = {
