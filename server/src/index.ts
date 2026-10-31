@@ -58,6 +58,39 @@ async function bootstrap() {
   const sslService = new SslService();
   const pinsService = new PinsService();
   const cloudflareService = new CloudflareService();
+
+  // Tunnel health changes are events nobody clicked: poll the tunnel list now and then and log only
+  // changes (the first poll is the baseline), so an outage shows up in Logs with its time.
+  const tunnelStates = new Map<string, { name: string; status: string }>();
+  const pollTunnelStates = async () => {
+    try {
+      const states = await cloudflareService.listTunnelStates();
+      const seen = new Set<string>();
+      for (const t of states) {
+        seen.add(t.id);
+        const prev = tunnelStates.get(t.id);
+        tunnelStates.set(t.id, { name: t.name, status: t.status });
+        if (!prev) {
+          if (tunnelStates.size > states.length) auditLogService.log('system', 'info', `Cloudflare tunnel ${t.name} appeared (${t.status})`);
+          continue;
+        }
+        if (prev.status === t.status) continue;
+        const level = t.status === 'healthy' ? 'info' : t.status === 'degraded' ? 'warn' : 'error';
+        auditLogService.log('system', level, `Cloudflare tunnel ${t.name}: ${prev.status} -> ${t.status}`);
+      }
+      for (const [id, prev] of tunnelStates) {
+        if (seen.has(id) || states.length === 0) continue;
+        tunnelStates.delete(id);
+        auditLogService.log('system', 'info', `Cloudflare tunnel ${prev.name} no longer exists`);
+      }
+    } catch {
+      // The status page already reports API errors; a failed poll is not an event.
+    }
+  };
+  if (cloudflareService.isConfigured() && !config.demoMode) {
+    void pollTunnelStates();
+    setInterval(pollTunnelStates, 120_000).unref();
+  }
   const bookmarksService = new BookmarksService();
   const notificationsService = new NotificationsService();
   const gitProjectsService = new GitProjectsService(notificationsService);
@@ -396,12 +429,27 @@ async function bootstrap() {
       return { success: false, message: 'tunnelId, hostname and service are required' };
     }
     try {
-      const record = await cloudflareService.publish(body.tunnelId, body.hostname, body.service, Boolean(body.move));
-      auditLogService.log('config', 'info', `Published ${record.hostname} -> ${record.service} via Cloudflare Tunnel`, { actor: actorFor(request) });
-      return { success: true, hostname: record };
+      const result = await cloudflareService.publish(body.tunnelId, body.hostname, body.service, Boolean(body.move));
+      const host = result.record.hostname;
+      const origin = result.record.service;
+      const message =
+        result.kind === 'move'
+          ? `Moved ${host} from tunnel ${result.from.join(', ')} to ${result.tunnelName} (${origin})`
+          : result.kind === 'update'
+            ? `Changed origin of ${host} on tunnel ${result.tunnelName} to ${origin}`
+            : result.kind === 'dns'
+              ? `Repaired DNS for ${host} on tunnel ${result.tunnelName}`
+              : `Published ${host} on tunnel ${result.tunnelName} -> ${origin}`;
+      auditLogService.log('config', 'info', message, { actor: actorFor(request), detail: `kind=${result.kind}, dns=${result.dnsAction}` });
+      return { success: true, hostname: result.record };
     } catch (e) {
       const message = (e as Error).message;
-      auditLogService.log('config', 'error', `Cloudflare publish ${body.hostname} failed: ${message}`, { actor: actorFor(request) });
+      auditLogService.log(
+        'config',
+        'error',
+        `Cloudflare publish ${body.hostname} on tunnel ${cloudflareService.describeTunnel(body.tunnelId)} failed: ${message}`,
+        { actor: actorFor(request), detail: `origin=${body.service}, move=${Boolean(body.move)}` },
+      );
       reply.code(e instanceof CloudflareError ? 400 : 500);
       return { success: false, message };
     }
@@ -410,12 +458,12 @@ async function bootstrap() {
   app.delete('/api/cloudflare/tunnels/:tunnelId/hostnames/:hostname', async (request, reply) => {
     const { tunnelId, hostname } = request.params as { tunnelId: string; hostname: string };
     try {
-      await cloudflareService.unpublish(tunnelId, hostname);
-      auditLogService.log('config', 'info', `Removed ${hostname} from Cloudflare Tunnel`, { actor: actorFor(request) });
+      const tunnelName = await cloudflareService.unpublish(tunnelId, hostname);
+      auditLogService.log('config', 'info', `Removed ${hostname} from tunnel ${tunnelName}`, { actor: actorFor(request) });
       return { success: true };
     } catch (e) {
       const message = (e as Error).message;
-      auditLogService.log('config', 'error', `Cloudflare remove ${hostname} failed: ${message}`, { actor: actorFor(request) });
+      auditLogService.log('config', 'error', `Cloudflare remove ${hostname} from tunnel ${cloudflareService.describeTunnel(tunnelId)} failed: ${message}`, { actor: actorFor(request) });
       reply.code(e instanceof CloudflareError ? 400 : 500);
       return { success: false, message };
     }
@@ -737,6 +785,7 @@ async function bootstrap() {
 
   try {
     await app.listen({ port: config.port, host: config.host });
+    auditLogService.log('system', 'info', `Dashboard started${config.demoMode ? ' (demo mode)' : ''}`, { detail: `node ${process.version}, pid ${process.pid}` });
     console.log(`[Dashboard] Server ready at http://${config.host}:${config.port}`);
   } catch (err) {
     app.log.error(err);

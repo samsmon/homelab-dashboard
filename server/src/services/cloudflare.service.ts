@@ -44,6 +44,15 @@ interface CfDnsRecord {
 
 type DnsPlan = { action: 'none' } | { action: 'create' } | { action: 'repoint'; id: string };
 
+/** What a publish actually did, so the audit log can say more than "published". */
+export interface PublishResult {
+  record: TunnelHostname;
+  tunnelName: string;
+  kind: 'new' | 'update' | 'move' | 'dns';
+  from: string[];
+  dnsAction: 'none' | 'create' | 'repoint';
+}
+
 export class CloudflareError extends Error {}
 
 /** The zone whose name is the longest suffix of the hostname, so sub.example.co.id picks example.co.id. */
@@ -65,6 +74,7 @@ export function findZone(zones: CloudflareZone[], hostname: string): CloudflareZ
  */
 export class CloudflareService {
   private cache: { at: number; value: CloudflareStatus } | null = null;
+  private tunnelNames = new Map<string, string>();
 
   // Demo mode keeps everything in memory so the UI can be exercised without a token.
   private demo = buildDemo();
@@ -110,7 +120,22 @@ export class CloudflareService {
   }
 
   private async listTunnels(): Promise<CfTunnel[]> {
-    return this.call<CfTunnel[]>('GET', `/accounts/${config.cloudflare.accountId}/cfd_tunnel?is_deleted=false&per_page=100`);
+    const tunnels = await this.call<CfTunnel[]>('GET', `/accounts/${config.cloudflare.accountId}/cfd_tunnel?is_deleted=false&per_page=100`);
+    for (const t of tunnels) this.tunnelNames.set(t.id, t.name);
+    return tunnels;
+  }
+
+  /** Name for log messages; falls back to a short id when the tunnel has not been listed yet. */
+  public describeTunnel(tunnelId: string): string {
+    const demo = this.demo.tunnels.find((t) => t.id === tunnelId);
+    return this.tunnelNames.get(tunnelId) ?? demo?.name ?? tunnelId.slice(0, 8);
+  }
+
+  /** One cheap call (no ingress or DNS reads), for the background status watcher. */
+  public async listTunnelStates(): Promise<{ id: string; name: string; status: string }[]> {
+    if (config.demoMode || !this.isConfigured()) return [];
+    const tunnels = await this.listTunnels();
+    return tunnels.map((t) => ({ id: t.id, name: t.name, status: t.status }));
   }
 
   private isRemote(t: CfTunnel): boolean {
@@ -217,7 +242,7 @@ export class CloudflareService {
    * different tunnel is only taken over when `move` is set, so a typo cannot
    * silently steal live traffic.
    */
-  public async publish(tunnelId: string, hostname: string, service: string, move = false): Promise<TunnelHostname> {
+  public async publish(tunnelId: string, hostname: string, service: string, move = false): Promise<PublishResult> {
     hostname = hostname.trim().toLowerCase();
     service = service.trim();
     this.validate(hostname, service);
@@ -252,6 +277,7 @@ export class CloudflareService {
     const existing = rules.find((r) => r.hostname === hostname && !r.path);
     const updated: IngressRule = { ...(existing ?? {}), hostname, service };
     const next = existing ? rules.map((r) => (r === existing ? updated : r)) : [...rules, updated];
+    const kind: PublishResult['kind'] = holders.length > 0 ? 'move' : existing ? (existing.service === service ? 'dns' : 'update') : 'new';
     await this.writeConfig(tunnelId, { ...cfg, ingress: [...next, catchAll] });
 
     try {
@@ -265,10 +291,17 @@ export class CloudflareService {
       await this.writeConfig(h.tunnel.id, { ...h.cfg, ingress: [...h.rules.filter((r) => r.hostname !== hostname), h.catchAll] });
     }
     this.cache = null;
-    return { hostname, service, zoneId: zone.id, zoneName: zone.name, dns: 'ok' };
+    return {
+      record: { hostname, service, zoneId: zone.id, zoneName: zone.name, dns: 'ok' },
+      tunnelName: target.name,
+      kind,
+      from: holders.map((h) => h.tunnel.name),
+      dnsAction: dnsPlan.action,
+    };
   }
 
-  public async unpublish(tunnelId: string, hostname: string): Promise<void> {
+  /** Returns the name of the tunnel the hostname was removed from. */
+  public async unpublish(tunnelId: string, hostname: string): Promise<string> {
     hostname = hostname.trim().toLowerCase();
     this.validate(hostname);
 
@@ -297,6 +330,7 @@ export class CloudflareService {
       }
     }
     this.cache = null;
+    return target.name;
   }
 
   /**
@@ -330,29 +364,34 @@ export class CloudflareService {
     return { configured: true, isDemo: true, zones: this.demo.zones, tunnels: structuredClone(this.demo.tunnels) };
   }
 
-  private demoPublish(tunnelId: string, hostname: string, service: string, move: boolean): TunnelHostname {
+  private demoPublish(tunnelId: string, hostname: string, service: string, move: boolean): PublishResult {
     const zone = findZone(this.demo.zones, hostname);
     if (!zone) throw new CloudflareError(`${hostname} is not inside any zone this token can access`);
     const target = this.demo.tunnels.find((t) => t.id === tunnelId);
     if (!target) throw new CloudflareError('Unknown tunnel');
     if (target.managed === 'local') throw new CloudflareError(`Tunnel ${target.name} is locally managed; edit its config file instead`);
 
+    const from: string[] = [];
     for (const other of this.demo.tunnels.filter((t) => t.id !== tunnelId)) {
       if (!other.hostnames.some((h) => h.hostname === hostname)) continue;
       if (!move) throw new CloudflareError(`${hostname} is already on tunnel ${other.name}; use Move to take it over`);
       other.hostnames = other.hostnames.filter((h) => h.hostname !== hostname);
+      from.push(other.name);
     }
+    const existing = target.hostnames.find((h) => h.hostname === hostname);
+    const kind: PublishResult['kind'] = from.length > 0 ? 'move' : existing ? (existing.service === service ? 'dns' : 'update') : 'new';
     target.hostnames = target.hostnames.filter((h) => h.hostname !== hostname);
     const record: TunnelHostname = { hostname, service, zoneId: zone.id, zoneName: zone.name, dns: 'ok' };
     target.hostnames.push(record);
-    return record;
+    return { record, tunnelName: target.name, kind, from, dnsAction: kind === 'move' ? 'repoint' : kind === 'new' ? 'create' : 'none' };
   }
 
-  private demoUnpublish(tunnelId: string, hostname: string): void {
+  private demoUnpublish(tunnelId: string, hostname: string): string {
     const target = this.demo.tunnels.find((t) => t.id === tunnelId);
     if (!target) throw new CloudflareError('Unknown tunnel');
     if (!target.hostnames.some((h) => h.hostname === hostname)) throw new CloudflareError('Hostname is not on this tunnel');
     target.hostnames = target.hostnames.filter((h) => h.hostname !== hostname);
+    return target.name;
   }
 }
 

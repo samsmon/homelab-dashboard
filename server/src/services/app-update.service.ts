@@ -6,6 +6,7 @@ import { promisify } from 'node:util';
 import { config } from '../config.js';
 import { AppUpdateStatus, AppUpdateState, UpdateAnnouncement, AppVersionInfo } from '../types.js';
 import { NotificationsService } from './notifications.service.js';
+import { auditLogService } from './audit-log.service.js';
 
 const execFile = promisify(execFileCb);
 const MAX_UPDATE_LOG_LINES = 500;
@@ -487,6 +488,7 @@ export class AppUpdateService {
     }
 
     this.notifications.add('app-update-start', 'Memulai pembaruan Homelab Dashboard...');
+    auditLogService.log('app-update', 'info', 'Dashboard update started', { detail: runnerSpawned ? 'out-of-process runner' : 'in-process update' });
     return { started: true };
   }
 
@@ -558,6 +560,7 @@ export class AppUpdateService {
       this.updateState.status = 'success';
       this.updateState.finishedAt = Date.now();
       this.notifications.add('app-update-success', `Homelab Dashboard berhasil diupdate ke versi ${newSha.slice(0, 7)}!`);
+      auditLogService.log('app-update', 'info', `Dashboard updated to ${newSha.slice(0, 7)}`);
     } catch (err: any) {
       const msg = err.message || 'Proses update gagal.';
       appendLog(`✕ Gagal: ${msg}`);
@@ -565,6 +568,7 @@ export class AppUpdateService {
       this.updateState.message = msg;
       this.updateState.finishedAt = Date.now();
       this.notifications.add('app-update-failed', `Pembaruan Homelab Dashboard gagal: ${msg}`);
+      auditLogService.log('app-update', 'error', 'Dashboard update failed', { detail: msg });
     }
   }
 

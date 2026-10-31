@@ -8,7 +8,7 @@ import { PinsService } from './pins.service.js';
 import { GitProjectsService } from './git-projects.service.js';
 import { ServiceProbeService } from './service-probe.service.js';
 import { MetricHistoryService } from './metric-history.service.js';
-import { CockpitSnapshot, SentinelStatus, DockerHostSummary, AppVersionInfo, StorageItem, MetricHistoryPoint } from '../types.js';
+import { CockpitSnapshot, SentinelStatus, DockerHostSummary, AppVersionInfo, StorageItem, MetricHistoryPoint, ContainerMetric } from '../types.js';
 import { auditLogService } from './audit-log.service.js';
 import { config } from '../config.js';
 
@@ -31,6 +31,9 @@ export class CollectorService {
   private lastSnapshot: CockpitSnapshot | null = null;
   private containerMonitoringExpiresAt = 0;
   private lastStorageStateById: Map<string, { isDisconnected: boolean; smartStatus?: string; status: string }> = new Map();
+  private lastContainerState: Map<string, { state: ContainerMetric['state']; health: string | null }> = new Map();
+  private recentContainerLogs: Map<string, number[]> = new Map();
+  private lastHostLive: Map<string, boolean> = new Map();
 
   public isContainerMonitoringActive(): boolean {
     return Date.now() < this.containerMonitoringExpiresAt;
@@ -208,6 +211,8 @@ export class CollectorService {
       }))
     );
 
+    this.logContainerTransitions(perHostResults.map(({ service, result }) => ({ host: service.name, isLive: result.isLive, containers: result.containers })));
+
     const dockerHosts: DockerHostSummary[] = perHostResults.map(({ service, result }) => ({
       name: service.name,
       // Reflects this tick's actual fetch outcome, not just whether the service was
@@ -307,6 +312,73 @@ export class CollectorService {
           `${item.label} (${item.mount}) health: ${prev.status} -> ${next.status}`,
           { detail: `usedPercent=${item.usedPercent}` }
         );
+      }
+    }
+  }
+
+  // Same idea as the storage transitions: the 2s snapshot is already there, so this only costs a
+  // map diff and writes to the audit log when something actually changed. This is what records a
+  // container that died while nobody was looking (e.g. a service left Exited after a disk outage).
+  private logContainerTransitions(hosts: { host: string; isLive: boolean; containers: ContainerMetric[] }[]) {
+    const now = Date.now();
+    for (const { host, isLive, containers } of hosts) {
+      const wasLive = this.lastHostLive.get(host);
+      this.lastHostLive.set(host, isLive);
+      if (wasLive !== undefined && wasLive !== isLive) {
+        auditLogService.log('system', isLive ? 'info' : 'error', isLive ? `Docker host ${host} reachable again` : `Docker host ${host} unreachable`);
+      }
+      // A host that failed this tick returns no containers; diffing against that would report every
+      // container as gone. Keep the old state and take a fresh baseline once the host is back.
+      if (!isLive) continue;
+
+      const healthOf = (status: string): string | null => {
+        const m = /\((?:health: )?(healthy|unhealthy|starting)\)/i.exec(status);
+        return m ? m[1].toLowerCase() : null;
+      };
+      const baseline = wasLive !== true;
+      const present = new Set<string>();
+
+      for (const c of containers) {
+        const key = `${host}/${c.name}`;
+        present.add(key);
+        const next = { state: c.state, health: healthOf(c.status) };
+        const prev = this.lastContainerState.get(key);
+        this.lastContainerState.set(key, next);
+        if (baseline) continue;
+
+        let message: string | null = null;
+        let level: 'info' | 'warn' | 'error' = 'info';
+        if (!prev) {
+          message = `Container ${c.name} appeared on ${host} (${c.state})`;
+        } else if (prev.state !== next.state) {
+          message = `Container ${c.name} on ${host}: ${prev.state} -> ${next.state}`;
+          level = next.state === 'running' ? 'info' : next.state === 'paused' ? 'warn' : 'error';
+        } else if (prev.health !== next.health && (next.health === 'unhealthy' || prev.health === 'unhealthy')) {
+          message = `Container ${c.name} on ${host} is ${next.health ?? 'no longer unhealthy'}`;
+          level = next.health === 'unhealthy' ? 'warn' : 'info';
+        }
+        if (!message) continue;
+        // A container that restarts in a loop would otherwise write a line every tick: allow three
+        // entries a minute, say once that it is flapping, then stay quiet until the minute passes.
+        const recent = (this.recentContainerLogs.get(key) ?? []).filter((t) => now - t < 60_000);
+        if (recent.length >= 3) {
+          if (recent.length === 3) {
+            auditLogService.log('container', 'warn', `Container ${c.name} on ${host} keeps changing state; further changes are muted for a minute`);
+          }
+          recent.push(now);
+          this.recentContainerLogs.set(key, recent);
+          continue;
+        }
+        recent.push(now);
+        this.recentContainerLogs.set(key, recent);
+        auditLogService.log('container', level, message, { detail: c.status });
+      }
+
+      for (const key of [...this.lastContainerState.keys()]) {
+        if (!key.startsWith(`${host}/`) || present.has(key)) continue;
+        const prev = this.lastContainerState.get(key);
+        this.lastContainerState.delete(key);
+        if (!baseline) auditLogService.log('container', prev?.state === 'running' ? 'warn' : 'info', `Container ${key.slice(host.length + 1)} is no longer present on ${host}`);
       }
     }
   }

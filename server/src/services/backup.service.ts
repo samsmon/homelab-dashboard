@@ -6,6 +6,7 @@ import { execFile as execFileCb } from 'node:child_process';
 import { promisify } from 'node:util';
 import { config } from '../config.js';
 import { BackupRunResult, BackupStatus } from '../types.js';
+import { auditLogService } from './audit-log.service.js';
 
 const execFile = promisify(execFileCb);
 const EXEC_OPTS = { timeout: 30 * 60 * 1000, maxBuffer: 20 * 1024 * 1024 };
@@ -92,6 +93,7 @@ export class BackupService {
 
   public async runBackup(): Promise<BackupRunResult> {
     const result = await this.runSync('backup');
+    this.logRun('Backup', result);
     this.status.backup = result;
     this.saveStatus();
     return result;
@@ -99,9 +101,20 @@ export class BackupService {
 
   public async runRestore(): Promise<BackupRunResult> {
     const result = await this.runSync('restore');
+    this.logRun('Restore', result);
     this.status.restore = result;
     this.saveStatus();
     return result;
+  }
+
+  private logRun(label: string, result: BackupRunResult) {
+    const seconds = Math.round(result.lastDurationMs / 1000);
+    auditLogService.log(
+      'backup',
+      result.lastResult === 'success' ? 'info' : 'error',
+      result.lastResult === 'success' ? `${label} completed in ${seconds}s` : `${label} failed after ${seconds}s`,
+      { detail: result.lastError },
+    );
   }
 
   private async runSync(direction: 'backup' | 'restore'): Promise<BackupRunResult> {
