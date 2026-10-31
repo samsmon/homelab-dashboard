@@ -339,6 +339,9 @@ export class CollectorService {
       const present = new Set<string>();
 
       for (const c of containers) {
+        // `docker compose up` briefly runs the replacement under a temporary `<12 hex>_name`; that is not
+        // a container appearing or leaving, so it must not reach the log.
+        if (/^[0-9a-f]{12}_/.test(c.name)) continue;
         const key = `${host}/${c.name}`;
         present.add(key);
         const next = { state: c.state, health: healthOf(c.status) };

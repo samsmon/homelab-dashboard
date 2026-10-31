@@ -5,6 +5,15 @@ This file tracks the activities of all AI agents (Gemini, Claude, etc.) operatin
 
 ---
 
+### [2026-10-31 UTC] (logs-fix)
+**Agent:** Claude (Fix: Compose temporary container names in Logs)
+**Status:** `[COMPLETED]`
+**Activities Completed:**
+- `CollectorService.logContainerTransitions()` now skips containers named `<12 hex>_<name>`, the temporary name `docker compose up` gives a replacement container, which wrote a false "Container ... appeared (created)" entry on every redeploy.
+- Verified with the scripted transition scenarios (a temporary-name container produces no entry) and on the live server after redeploy.
+
+---
+
 ### [2026-10-31 UTC] (git-projects)
 **Agent:** Claude (Git projects v2: discover repositories on the servers and show what is really checked out)
 **Status:** `[COMPLETED]`
