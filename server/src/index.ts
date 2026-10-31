@@ -28,6 +28,7 @@ import { AppUpdateService } from './services/app-update.service.js';
 import { AiAgentsService } from './services/ai-agents.service.js';
 import { auditLogService } from './services/audit-log.service.js';
 import { DiskScanService } from './services/disk-scan.service.js';
+import { CloudflareService, CloudflareError } from './services/cloudflare.service.js';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -56,6 +57,7 @@ async function bootstrap() {
   const tailscaleService = new TailscaleService();
   const sslService = new SslService();
   const pinsService = new PinsService();
+  const cloudflareService = new CloudflareService();
   const bookmarksService = new BookmarksService();
   const notificationsService = new NotificationsService();
   const gitProjectsService = new GitProjectsService(notificationsService);
@@ -380,6 +382,43 @@ async function bootstrap() {
     notificationsService.add('unpin', `Unpinned ${name}`);
     auditLogService.log('pin', 'info', `Unpinned ${name}`, { actor: actorFor(request) });
     return { success: true };
+  });
+
+  app.get('/api/cloudflare', async (request) => {
+    const { refresh } = request.query as { refresh?: string };
+    return cloudflareService.getStatus(refresh === '1');
+  });
+
+  app.post('/api/cloudflare/hostnames', async (request, reply) => {
+    const body = request.body as { tunnelId?: string; hostname?: string; service?: string; move?: boolean };
+    if (!body?.tunnelId || !body?.hostname || !body?.service) {
+      reply.code(400);
+      return { success: false, message: 'tunnelId, hostname and service are required' };
+    }
+    try {
+      const record = await cloudflareService.publish(body.tunnelId, body.hostname, body.service, Boolean(body.move));
+      auditLogService.log('config', 'info', `Published ${record.hostname} -> ${record.service} via Cloudflare Tunnel`, { actor: actorFor(request) });
+      return { success: true, hostname: record };
+    } catch (e) {
+      const message = (e as Error).message;
+      auditLogService.log('config', 'error', `Cloudflare publish ${body.hostname} failed: ${message}`, { actor: actorFor(request) });
+      reply.code(e instanceof CloudflareError ? 400 : 500);
+      return { success: false, message };
+    }
+  });
+
+  app.delete('/api/cloudflare/tunnels/:tunnelId/hostnames/:hostname', async (request, reply) => {
+    const { tunnelId, hostname } = request.params as { tunnelId: string; hostname: string };
+    try {
+      await cloudflareService.unpublish(tunnelId, hostname);
+      auditLogService.log('config', 'info', `Removed ${hostname} from Cloudflare Tunnel`, { actor: actorFor(request) });
+      return { success: true };
+    } catch (e) {
+      const message = (e as Error).message;
+      auditLogService.log('config', 'error', `Cloudflare remove ${hostname} failed: ${message}`, { actor: actorFor(request) });
+      reply.code(e instanceof CloudflareError ? 400 : 500);
+      return { success: false, message };
+    }
   });
 
   app.get('/api/audit-log', async () => {

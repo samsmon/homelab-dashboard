@@ -132,6 +132,13 @@ export const config = {
     .split(',')
     .map(label => label.trim()),
   sslDomains: parseSslDomains(process.env.SSL_DOMAINS),
+  // Cloudflare Tunnel management. Tunnels and zones are discovered from the
+  // account, so only the token and account id are needed; the token never
+  // leaves the server.
+  cloudflare: {
+    apiToken: process.env.CLOUDFLARE_API_TOKEN || '',
+    accountId: process.env.CLOUDFLARE_ACCOUNT_ID || '',
+  },
   // Cert expiry doesn't change minute to minute; a real TLS handshake per
   // configured domain follows the same cache-and-throttle rule as the GitHub
   // check below rather than running on the 2s poll tick.
