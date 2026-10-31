@@ -1,6 +1,6 @@
 import { createPortal } from 'react-dom';
 import React, { useEffect, useMemo, useState } from 'react';
-import { Trash2, RefreshCw, Copy, Check, X } from 'lucide-react';
+import { Trash2, RefreshCw, Copy, Check, X, Download } from 'lucide-react';
 import { authFetch } from '../utils/api.js';
 import { AuditCategory, AuditLevel, AuditLogEntry } from '../types.js';
 import { StateBlock } from '../components/StateBlock.js';
@@ -130,6 +130,9 @@ export const LogsPage: React.FC<{ isPrivacyMode?: boolean }> = ({ isPrivacyMode 
   const [loadError, setLoadError] = useState(false);
   const [selectedEntry, setSelectedEntry] = useState<AuditLogEntry | null>(null);
   const [visibleCount, setVisibleCount] = useState(PAGE_SIZE);
+  const [actor, setActor] = useState('');
+  const [from, setFrom] = useState('');
+  const [to, setTo] = useState('');
 
   const load = () => {
     authFetch('/api/audit-log')
@@ -151,13 +154,20 @@ export const LogsPage: React.FC<{ isPrivacyMode?: boolean }> = ({ isPrivacyMode 
   // A new filter starts again from the newest page.
   useEffect(() => {
     setVisibleCount(PAGE_SIZE);
-  }, [category, level, search]);
+  }, [category, level, search, actor, from, to]);
+
+  const actors = useMemo(() => [...new Set(entries.map((e) => e.actor || 'system'))].sort(), [entries]);
 
   const filtered = useMemo(() => {
     const q = search.trim().toLowerCase();
+    const fromMs = from ? new Date(`${from}T00:00:00`).getTime() : null;
+    const toMs = to ? new Date(`${to}T23:59:59.999`).getTime() : null;
     return entries.filter((e) => {
       if (category !== 'all' && e.category !== category) return false;
       if (level !== 'all' && e.level !== level) return false;
+      if (actor && (e.actor || 'system') !== actor) return false;
+      if (fromMs !== null && e.createdAt < fromMs) return false;
+      if (toMs !== null && e.createdAt > toMs) return false;
       if (
         q &&
         !e.message.toLowerCase().includes(q) &&
@@ -168,7 +178,44 @@ export const LogsPage: React.FC<{ isPrivacyMode?: boolean }> = ({ isPrivacyMode 
       }
       return true;
     });
-  }, [entries, category, level, search]);
+  }, [entries, category, level, search, actor, from, to]);
+
+  const hasFilters = category !== 'all' || level !== 'all' || search !== '' || actor !== '' || from !== '' || to !== '';
+  const clearFilters = () => {
+    setCategory('all');
+    setLevel('all');
+    setSearch('');
+    setActor('');
+    setFrom('');
+    setTo('');
+  };
+
+  // Exports honor privacy mode, so a shared export never carries IPs or hostnames the screen hides.
+  const download = (name: string, type: string, body: string) => {
+    const url = URL.createObjectURL(new Blob([body], { type }));
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = name;
+    a.click();
+    URL.revokeObjectURL(url);
+  };
+  const exportRows = () =>
+    filtered.map((e) => ({
+      time: new Date(e.createdAt).toISOString(),
+      level: e.level,
+      category: e.category,
+      actor: e.actor || 'system',
+      message: redactFreeText(e.message, isPrivacyMode),
+      detail: redactFreeText(e.detail || '', isPrivacyMode),
+    }));
+  const stamp = () => new Date().toISOString().slice(0, 10);
+  const exportJson = () => download(`audit-log-${stamp()}.json`, 'application/json', JSON.stringify(exportRows(), null, 2));
+  const exportCsv = () => {
+    const cell = (v: string) => `"${v.replace(/"/g, '""')}"`;
+    const rows = exportRows();
+    const lines = ['time,level,category,actor,message,detail', ...rows.map((r) => [r.time, r.level, r.category, r.actor, r.message, r.detail].map(cell).join(','))];
+    download(`audit-log-${stamp()}.csv`, 'text/csv', lines.join('\n'));
+  };
 
   const visible = filtered.slice(0, visibleCount);
 
@@ -222,6 +269,40 @@ export const LogsPage: React.FC<{ isPrivacyMode?: boolean }> = ({ isPrivacyMode 
               {l}
             </button>
           ))}
+        </div>
+      </div>
+
+      <div className="flex flex-wrap items-center gap-2 border-b border-cockpit-border/60 px-4 py-3">
+        <label className="flex items-center gap-1.5 text-[11.5px] text-cockpit-muted">
+          From
+          <input type="date" value={from} max={to || undefined} onChange={(e) => setFrom(e.target.value)} className="field" aria-label="From date" />
+        </label>
+        <label className="flex items-center gap-1.5 text-[11.5px] text-cockpit-muted">
+          To
+          <input type="date" value={to} min={from || undefined} onChange={(e) => setTo(e.target.value)} className="field" aria-label="To date" />
+        </label>
+        <select value={actor} onChange={(e) => setActor(e.target.value)} aria-label="Actor" className="field min-w-0">
+          <option value="">All actors</option>
+          {actors.map((a) => (
+            <option key={a} value={a}>
+              {a}
+            </option>
+          ))}
+        </select>
+        {hasFilters && (
+          <button onClick={clearFilters} className="btn-ghost text-[12px]">
+            Clear filters
+          </button>
+        )}
+        <div className="ml-auto flex items-center gap-2">
+          <button onClick={exportCsv} disabled={filtered.length === 0} className="btn-ghost inline-flex items-center gap-1.5 text-[12px] disabled:opacity-40" title="Download the filtered entries as CSV">
+            <Download className="h-3.5 w-3.5" />
+            CSV
+          </button>
+          <button onClick={exportJson} disabled={filtered.length === 0} className="btn-ghost inline-flex items-center gap-1.5 text-[12px] disabled:opacity-40" title="Download the filtered entries as JSON">
+            <Download className="h-3.5 w-3.5" />
+            JSON
+          </button>
         </div>
       </div>
 
