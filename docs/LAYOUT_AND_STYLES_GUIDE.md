@@ -25,7 +25,7 @@ Every layout variant (Classic, Beta, or new future variants) must implement or h
 - [ ] **Fullscreen Toggle:** Enter/exit browser fullscreen mode.
 - [ ] **Sync / Refresh Button:** Instant manual refresh trigger with last-updated timestamp tooltip and live pulse dot.
 - [ ] **User Logout:** Sign out action trigger (`useAuth().logout`).
-- [ ] **Mobile Navigation:** Responsive horizontal navigation strip (`md:hidden`) for phones/tablets.
+- [ ] **Mobile Navigation:** Fixed bottom bar (`md:hidden`, `MobileNav.tsx`) with the four main pages and a grouped "More" sheet that also holds Settings.
 
 ### B. Persistent Sidebar & Navigation Rail
 - [ ] **Complete Route Directory:**
@@ -89,7 +89,7 @@ Every layout variant (Classic, Beta, or new future variants) must implement or h
 | **Layout Shell (Beta)** | `client/src/layouts/BetaLayout.tsx` | High-contrast brutalist layout container with scoped alerts. |
 | **Header (Classic)** | `client/src/components/Header.tsx` | Glassmorphic top navigation bar with widgets and action buttons. |
 | **Header (Beta)** | `client/src/components/BetaHeader.tsx` | Brutalist top bar with notifications, `Ctrl+K` hint, and controls. |
-| **Sidebar (Classic)** | `client/src/components/Sidebar.tsx` | Desktop floating collapsible navigation rail (`NAV_ROUTES`). |
+| **Sidebar (Classic)** | `client/src/components/Sidebar.tsx` | Desktop floating collapsible rail with collapsible groups (`NAV_GROUPS`; `NAV_ROUTES` is derived from it). |
 | **Sidebar (Beta)** | `client/src/components/BetaSidebar.tsx` | Brutalist collapsible rail (`BETA_NAV_ROUTES`) with storage toggle. |
 | **Command Palette** | `client/src/components/CommandPalette.tsx` | Global `Ctrl+K` modal with layout-aware route preservation. |
 | **Overview (Classic)** | `client/src/pages/HomePage.tsx` | Glassmorphism dashboard overview with telemetry panels. |
@@ -149,3 +149,6 @@ When developing a new style variant (e.g., Minimalist, Cyberpunk, Compact, etc.)
 - **New Logs page (`/logs`).** `AuditLogService` (`server/src/services/audit-log.service.ts`, `data/audit-log.json`, capped at 5000 entries) is a separate, larger-scale sibling to `NotificationsService` — it's meant to be a real audit trail, not a 50-entry UI feed. It's written to from every state-changing route in `index.ts` (auth, pins, container power actions, git register/unregister/pull, backup/restore, config import) plus a global Fastify `setErrorHandler` that logs any uncaught route error. `LogsPage.tsx` polls `GET /api/audit-log` every 5s with category/level filters and search. Added to `Sidebar.tsx` `NAV_ROUTES`, `CommandPalette.tsx` `PAGES`, and `App.tsx` routes per the "three lists must agree" rule.
 - **Shortcuts (Bookmarks) support owner-defined groups.** `BookmarkRecord.group?: string` (server) is optional and freeform; `BookmarksSection.tsx` groups the non-reordering grid view by `group` (ungrouped items render first, under no heading), and the add/edit modal offers a `<datalist>` of existing group names for consistency. Reordering (drag & drop) still operates on the flat list, same as before groups existed.
 - **AI Agents Monitor is more transparent, not more "real."** No Anthropic Console admin API key is available to this deployment, so the 5-hour/weekly numbers remain a local estimate derived from this host's T3 session history (`~/.t3/userdata/state.sqlite`), not the account's authoritative usage counter. `AiAgentsPage.tsx` now shows a permanent (non-collapsible) disclaimer panel saying so, and each agent card shows `turnsToday` (new field on `AgentInstanceTelemetry`, computed server-side in `ai-agents.service.ts`) and a "last active" timestamp for more at-a-glance detail.
+- **Grouped navigation, Settings page, phone bottom bar (2026-10-31).** `Sidebar.tsx` exports `NAV_GROUPS` (Infrastructure, Network, Develop, Automation, System); open/closed groups persist in `cockpit-sidebar-groups-closed`. `MobileNav.tsx` replaces the header nav strip on phones. Settings moved from a modal to `/settings` (`SettingsPage.tsx`), and its theme buttons now drive `useTheme` instead of toggling a `dark` class the theme system never read.
+- **Cloudflare page (`/cloudflare`).** `cloudflare.service.ts` discovers every remotely-managed tunnel and every zone of the account (token plus account id only), reads each tunnel's ingress and each zone's CNAMEs, and reports per-hostname DNS state. `CloudflareFlowMap.tsx` draws domain, tunnel and origin as a graph (vertical stack under 640px). Writes read-modify-write the whole ingress list with the catch-all kept last; a hostname that lives on another tunnel is only taken over with an explicit move.
+- **Shared states and accessibility.** `StateBlock.tsx` is the single loading/empty/error block. `index.css` adds a visible keyboard focus ring, a light-theme palette that passes WCAG AA, an always-visible page scrollbar (no sideways jump when content height changes), and phone tap-target and 11px text floors.

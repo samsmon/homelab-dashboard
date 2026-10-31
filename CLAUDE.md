@@ -33,7 +33,9 @@ client/src/pages/                one file per route, thin — real content lives
 client/src/hooks/useCockpitData  WebSocket with HTTP polling fallback
 client/src/hooks/useTheme.ts     light/dark state, localStorage, system fallback
 client/src/components/           one file per section or modal
-client/src/components/Sidebar.tsx  page nav (floating, collapsible) — NAV_ROUTES lives here now, not Header.tsx
+client/src/components/Sidebar.tsx  page nav (floating, collapsible, grouped) — NAV_GROUPS and the derived NAV_ROUTES live here
+client/src/components/MobileNav.tsx  phone bottom bar plus a grouped "More" sheet
+client/src/components/StateBlock.tsx  the one loading / empty / error block every page uses
 client/src/components/CommandPalette.tsx  Ctrl+K palette: pages + pinned containers only
 client/src/utils/formatters.ts   byte, rate, uptime, redaction, thresholds
 client/src/types.ts              client-side shape of the snapshot
@@ -52,6 +54,12 @@ client/src/index.css             token values per theme, shared component classe
 **The accent is not a status colour.** `cockpit-accent` marks interactive and neutral-informational things. `state-good`, `state-warn` and `state-bad` mean healthy, degraded and failed. Mixing the two makes the dashboard unreadable at a glance, which is the only thing it is for.
 
 **Thresholds live in one place.** `getStatusColor` and `getTempColor` in `formatters.ts` decide when a number turns amber or red. Do not inline threshold comparisons in a component.
+
+**Nothing below 11px, and phone tap targets are at least 40px.** `.label` and `.pill` are 11px, and `index.css` raises buttons, selects and `.field` inputs to 2.5rem under 640px. Do not add `text-[10px]`-style sizes; do not shrink a control back below that on phones.
+
+**Loading, empty and error states use `StateBlock`.** A page that fetches must show all three, with Retry on error. Never swallow a failed fetch with an empty `catch`.
+
+**Privacy mode covers free text.** A page that prints IPs, hostnames or command lines takes `isPrivacyMode` and runs values through `redactText`, or `redactFreeText` for sentences that embed them (logs, command lines).
 
 **Monospace and `tabular-nums` for anything numeric** that a person compares across rows. Values that jitter as they update are a bug.
 
@@ -109,7 +117,7 @@ client/src/index.css             token values per theme, shared component classe
 
 **The clock/weather widget is the one thing in this client that talks to a third party directly, not through `/api`.** `ClockWeatherWidget.tsx` calls the browser's own `navigator.geolocation` and then Open-Meteo's public API (no key, no server involvement) straight from the client — coordinates never pass through this daemon. It's opt-in: the widget shows a "Weather" button rather than prompting for location on page load, since a location permission popup nobody asked for is the kind of surprise this dashboard doesn't do anywhere else. Don't route this through `authFetch` or proxy it via a new server route — there's nothing for the daemon to add here, and doing so would mean the owner's location touches server logs for no reason.
 
-**The sidebar is the page nav; the header's desktop `<nav>` is gone.** `Sidebar.tsx` renders `NAV_ROUTES` as a floating, collapsible left rail (collapsed state in `localStorage`, per-viewer, not server state) and is `hidden md:flex` — small screens still get the nav strip in `Header.tsx`, which imports `NAV_ROUTES` from `Sidebar.tsx` rather than owning a second copy of the list. When the page count grows, this is the nav to extend, not a new header row.
+**The sidebar is the page nav; the header's desktop `<nav>` is gone.** `Sidebar.tsx` renders Overview plus the collapsible groups in `NAV_GROUPS` as a floating left rail (rail and group open/closed state in `localStorage`, per-viewer, not server state) and is `hidden md:flex`. Small screens get `MobileNav.tsx` instead: a fixed bottom bar for the four main pages and a "More" sheet that lists the rest by group. Both read the same `NAV_GROUPS`, so there is only one list. Settings is a normal page (`/settings`), not a modal. When the page count grows, this is the nav to extend, not a new header row.
 
 ## Common tasks
 
@@ -117,7 +125,7 @@ client/src/index.css             token values per theme, shared component classe
 
 **Adding a section.** Build a `.panel` with a `.panel-head`, put the items in rows rather than a grid of cards, give each row exactly one status signal, and mount it inside the page it belongs on (`client/src/pages/`). If it belongs on Infra, it must survive a one-third-width column on desktop and full width on mobile.
 
-**Adding a page.** Add the file to `client/src/pages/`, a `<Route>` in `App.tsx`, a nav entry in `Sidebar.tsx`'s `NAV_ROUTES` array (this is the desktop nav now — `Header.tsx` only imports `NAV_ROUTES` for its small-screen strip, it doesn't own the list), and a page entry in `CommandPalette.tsx`'s `PAGES` array so `Ctrl+K` can reach it. All three lists must agree, on purpose — there's no single source of truth for "what pages exist" to derive them from.
+**Adding a page.** Add the file to `client/src/pages/`, a `<Route>` in `App.tsx`, a nav entry in the right group of `Sidebar.tsx`'s `NAV_GROUPS` (`NAV_ROUTES` and the phone "More" sheet derive from it), and a page entry in `CommandPalette.tsx`'s `PAGES` array so `Ctrl+K` can reach it. All three lists must agree, on purpose — there's no single source of truth for "what pages exist" to derive them from.
 
 **Adding a route.** Register it in `server/src/index.ts` next to the others and keep the response shape flat. Anything that changes state is a POST and needs a confirmation path in the client.
 
@@ -159,7 +167,7 @@ All user interface modifications must strictly preserve the modern glassmorphism
 
 - **Typography & Numerical Metrics:**
   - Panel headers: `.panel-title` (`text-[14px] font-bold tracking-tight text-cockpit-text`) and `.panel-sub` (`text-[12px] text-cockpit-muted`).
-  - Section / Column labels: `.label` (`font-mono text-[10.5px] uppercase tracking-[0.1em] text-cockpit-muted`).
+  - Section / Column labels: `.label` (`font-mono text-[11px] uppercase tracking-[0.1em] text-cockpit-muted`).
   - Numeric metrics: Always use `.metric` or `.metric-lg` with `font-mono tabular-nums` to eliminate layout jitter.
   - Status badges: Always use `.pill` variants (`.pill-good`, `.pill-warn`, `.pill-bad`, `.pill-accent`, `.pill-neutral`).
 

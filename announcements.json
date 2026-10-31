@@ -1,5 +1,19 @@
 [
   {
+    "id": "2026-10-31-feat-cloudflare-manager-fleet-mobile",
+    "version": "1.6.0",
+    "title": "Cloudflare Tunnel Manager, Grouped Navigation, Fleet and Mobile Polish",
+    "date": "2026-10-31",
+    "description": "A new Cloudflare page manages every tunnel and domain on your account with a traffic map, the sidebar is grouped with Settings as its own page, and Fleet, Logs, Processes and the phone layout were reworked.",
+    "highlights": [
+      "Cloudflare page: lists all remotely-managed tunnels and zones, draws domain to tunnel to origin, flags missing or wrong DNS records, and publishes, edits, moves or removes hostnames. Needs CLOUDFLARE_API_TOKEN and CLOUDFLARE_ACCOUNT_ID.",
+      "Sidebar groups (Infrastructure, Network, Develop, Automation, System) with a phone bottom bar; Settings is now a page and its theme buttons really switch the theme.",
+      "Fleet: search across all hosts, status and sort filters, list, cards and table views, and View all now shows every container (page sizes 15, 30 and All).",
+      "Logs paginate and Processes become cards on phones; tables no longer overflow, tap targets are at least 40px, text is at least 11px, and the light theme passes WCAG AA contrast.",
+      "Privacy mode now also masks IPs and domains inside log lines and process command lines; failed loads show a Retry instead of an empty page."
+    ]
+  },
+  {
     "id": "2026-09-21-feat-real-ssl-checks",
     "version": "1.5.0",
     "title": "Real SSL Certificate Checks, Sentinel Bot Hardcode Cleanup",

@@ -10,7 +10,7 @@ The first time the dashboard is opened it asks you to create the owner account. 
 
 ## Layout
 
-Seven pages, reachable from the sidebar on the left or by typing the address directly — each has its own URL and survives a reload or a bookmark:
+These pages are reachable from the sidebar on the left or by typing the address directly — each has its own URL and survives a reload or a bookmark:
 
 | Page | What it holds |
 | --- | --- |
@@ -21,10 +21,12 @@ Seven pages, reachable from the sidebar on the left or by typing the address dir
 | Processes (`/processes`) | Every process, tabbed by source: this host, Docker containers, or an SSH target |
 | Terminal (`/terminal`) | A real shell to Proxmox or a configured Docker host, over SSH |
 | Sentinel (`/sentinel`) | Telegram companion status and command reference |
+| Cloudflare (`/cloudflare`) | Every tunnel and domain on your Cloudflare account, a map of where each public hostname ends up, and controls to publish, edit, move and remove hostnames |
+| Settings (`/settings`) | Primary node name, light or dark theme, and the login password |
 
 ## Sidebar
 
-The floating rail on the left is the page nav — click the arrow at its bottom to collapse it to icons only when you want more room; it remembers that choice in this browser. On a narrow screen the sidebar hides and a nav strip appears in the header instead.
+The floating rail on the left is the page nav — click the arrow at its bottom to collapse it to icons only when you want more room; it remembers that choice in this browser. The pages are grouped (Infrastructure, Network, Develop, Automation, System); click a group name to fold it, and it remembers that too. Settings sits at the end of the System group. On a narrow screen the sidebar hides and a bar at the bottom of the screen takes over: four main pages plus **More**, which lists everything else by group.
 
 ## Header
 
@@ -211,6 +213,14 @@ A tab strip picks the source, task-manager style:
 
 Click a column header to sort by memory or disk I/O instead of CPU, or reverse the current sort. The search box filters by process name, command, user or PID within whichever tab is open.
 
+## Cloudflare
+
+Manages the public side of your homelab. It needs `CLOUDFLARE_API_TOKEN` and `CLOUDFLARE_ACCOUNT_ID` in the server's `.env` (token scopes: Account > Cloudflare Tunnel: Edit, Zone > Zone: Read, Zone > DNS: Edit); without them the page explains what is missing. Every remotely-managed tunnel and every domain on the account is found automatically, so several tunnels and several domains work side by side. Tunnels that keep their rules in a config file are listed but read-only.
+
+The **traffic map** reads left to right: visitor, domain, tunnel, server on your LAN. The number on a line is how many hostnames use that hop; a dashed amber line means a hostname's DNS record is missing or points at another tunnel. On a phone the same path is a vertical list.
+
+**Add public hostname** picks a tunnel, a domain, a subdomain (blank for the root) and an origin such as `http://192.168.x.x:8080`, then writes the tunnel rule and a proxied CNAME in one go. Each hostname row has **Fix DNS** (recreates or repoints the CNAME), **Edit** (change the origin, or move it to another tunnel) and **Remove** (asks first, and only deletes DNS records that point at that tunnel). Publishing a hostname that already lives on another tunnel is refused unless you use Move.
+
 ## Terminal
 
 A real shell, in the browser, to any host listed in `SSH_TARGETS`. Pick a target and it connects immediately — there's no confirmation step, because unlike every other action in this dashboard, a terminal isn't one specific thing to confirm; read the security note in the [README](../README.md#terminal) if you haven't already before turning this on.
@@ -226,6 +236,10 @@ Shows whether the Telegram companion is polling, whether the Gemini key is prese
 - Tier 3 changes state: `/restart <container>` and `/prune`, each requiring `/confirm` within 60 seconds, restricted to a whitelist. `/cancel` aborts.
 
 Messages from any Telegram ID outside the allowlist are ignored without a reply.
+
+## Settings
+
+Three sections on one page. **Primary node name** replaces the default `pve` label across the dashboard. **Appearance** switches dark and light and is remembered per browser; the sun and moon button in the header does the same. **Change password** replaces the login password for every device; the new one needs at least 6 characters.
 
 ## Notes
 

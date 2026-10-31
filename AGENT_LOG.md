@@ -5,6 +5,18 @@ This file tracks the activities of all AI agents (Gemini, Claude, etc.) operatin
 
 ---
 
+### [2026-10-31 UTC]
+**Agent:** Claude (UI polish: Fleet, mobile, grouped navigation, Settings page, Cloudflare tunnel manager, accessibility)
+**Status:** `[COMPLETED]`
+**Activities Completed:**
+- **Fleet (`ContainerGridSection.tsx`):** host chips, cross-host search, status and sort filters, list/cards/table views, and "View all" with page sizes 15, 30 and All.
+- **Navigation:** `Sidebar.tsx` now exports `NAV_GROUPS` with collapsible groups; new `MobileNav.tsx` bottom bar and grouped "More" sheet replace the header strip on phones. Settings moved from `UserSettingsModal` to the `/settings` page and its theme buttons use `useTheme`.
+- **Cloudflare:** new `cloudflare.service.ts` (token plus account id, discovers all remotely-managed tunnels and zones, per-hostname DNS state, publish/move/unpublish with ingress read-modify-write), routes `GET /api/cloudflare`, `POST /api/cloudflare/hostnames`, `DELETE /api/cloudflare/tunnels/:tunnelId/hostnames/:hostname`, new `CloudflarePage.tsx` and `CloudflareFlowMap.tsx` (graph, vertical stack on phones), a summary in Infra, and tunnel/zone pickers in `PinDomainModal.tsx`. Demo mode ships sample tunnels and zones.
+- **Quality pass:** `StateBlock.tsx` for loading/empty/error with Retry; Logs paginate; Processes are cards on phones and no longer overflow on desktop; Git projects and Terminal reworked for phones (Terminal gets an Esc/Tab/Ctrl/arrow key bar and Reconnect); demo Git projects; focus ring; always-visible page scrollbar; light-theme AA palette; 11px text and 40px tap-target floors; privacy mode covers free text (`redactFreeText`).
+- **Verification:** `tsc --noEmit` clean for client and server (only the existing `xterm.css`/`index.css` side-effect import notes); browser audits in demo mode at 375, 768, 1014 and 1280px (no horizontal overflow, no text below 11px, light theme 0 contrast failures of 598 text nodes). The real Cloudflare API and real SSH terminal sessions were not exercised.
+
+---
+
 ### [2026-09-28 UTC]
 **Agent:** Antigravity (Feature: Proxmox & Windows Task Manager performance graphs across Overview, Fleet, and Infra)
 **Status:** `[COMPLETED]`

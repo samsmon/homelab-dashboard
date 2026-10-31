@@ -81,6 +81,8 @@ Host machine (Proxmox + Ubuntu Runner)
 
 **Pinned containers & public tunnels.** Pin key containers with custom public domains (e.g. Cloudflare tunnels), persisted across client sessions in `data/pins.json`.
 
+**Cloudflare tunnel manager.** Discovers every remotely-managed tunnel and domain on a Cloudflare account, draws a domain, tunnel and origin map, and publishes, edits, moves or removes public hostnames (tunnel rule plus DNS record) from one page. Needs an API token; see `.env.example`.
+
 **AI Agents monitoring.** Live telemetry tracking AI coding assistants (Claude Pro, Gemini / Antigravity via T3 Code), including 5-hour rolling token windows, cooldown counters, and weekly activity distribution charts.
 
 **In-app self-update.** Direct version check against the GitHub repository with one-click background update and auto-reload capabilities.
