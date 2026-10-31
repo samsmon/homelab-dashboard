@@ -88,7 +88,7 @@ export const AuthScreen: React.FC = () => {
               Username
             </label>
             <div className="relative">
-              <div className="absolute inset-y-0 left-0 flex items-center pl-3 pointer-events-none text-cockpit-muted">
+              <div className="absolute inset-y-0 left-0 z-10 flex items-center pl-3 pointer-events-none text-cockpit-muted">
                 <User className="h-3.5 w-3.5" />
               </div>
               <input
@@ -109,7 +109,7 @@ export const AuthScreen: React.FC = () => {
               Password
             </label>
             <div className="relative">
-              <div className="absolute inset-y-0 left-0 flex items-center pl-3 pointer-events-none text-cockpit-muted">
+              <div className="absolute inset-y-0 left-0 z-10 flex items-center pl-3 pointer-events-none text-cockpit-muted">
                 <Lock className="h-3.5 w-3.5" />
               </div>
               <input
@@ -138,7 +138,7 @@ export const AuthScreen: React.FC = () => {
                 Confirm password
               </label>
               <div className="relative">
-                <div className="absolute inset-y-0 left-0 flex items-center pl-3 pointer-events-none text-cockpit-muted">
+                <div className="absolute inset-y-0 left-0 z-10 flex items-center pl-3 pointer-events-none text-cockpit-muted">
                   <Lock className="h-3.5 w-3.5" />
                 </div>
                 <input

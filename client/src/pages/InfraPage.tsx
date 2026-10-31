@@ -18,6 +18,7 @@ import { StorageMatrixSection } from '../components/StorageMatrixSection.js';
 import { DiskPerformancePanel } from '../components/DiskPerformancePanel.js';
 import { TailscaleMatrixSection } from '../components/TailscaleMatrixSection.js';
 import { SslTrackerSection } from '../components/SslTrackerSection.js';
+import { CloudflareTunnelSection } from '../components/CloudflareTunnelSection.js';
 import { BackupRestoreModal } from '../components/BackupRestoreModal.js';
 import { ImportConfigModal } from '../components/ImportConfigModal.js';
 import { authFetch } from '../utils/api.js';
@@ -321,7 +322,7 @@ export const InfraPage: React.FC<InfraPageProps> = ({ snapshot, isPrivacyMode, o
             {/* Compute Card */}
             <div className="panel flex flex-col justify-between p-4">
               <div>
-                <div className="flex items-center justify-between">
+                <div className="flex flex-wrap items-center justify-between gap-x-2 gap-y-1">
                   <span className="label">Compute · CPU &amp; RAM</span>
                   <span className={`pill ${cpuTone.badge} text-[10px]`}>{tempTone.label}</span>
                 </div>
@@ -344,7 +345,7 @@ export const InfraPage: React.FC<InfraPageProps> = ({ snapshot, isPrivacyMode, o
             {/* Network Card */}
             <div className="panel flex flex-col justify-between p-4">
               <div>
-                <div className="flex items-center justify-between">
+                <div className="flex flex-wrap items-center justify-between gap-x-2 gap-y-1">
                   <span className="label">Network &amp; Mesh</span>
                   <span className="pill pill-neutral text-[10px]">
                     {totalOnline}/{totalDevices} Online
@@ -369,7 +370,7 @@ export const InfraPage: React.FC<InfraPageProps> = ({ snapshot, isPrivacyMode, o
             {/* Storage Card */}
             <div className="panel flex flex-col justify-between p-4">
               <div>
-                <div className="flex items-center justify-between">
+                <div className="flex flex-wrap items-center justify-between gap-x-2 gap-y-1">
                   <span className="label">Storage Capacity</span>
                   <span className={`pill ${detachedStorageCount > 0 ? 'pill-bad' : 'pill-good'} text-[10px]`}>
                     {detachedStorageCount > 0 ? `${detachedStorageCount} Detached` : 'DAS Safe'}
@@ -394,7 +395,7 @@ export const InfraPage: React.FC<InfraPageProps> = ({ snapshot, isPrivacyMode, o
             {/* Backup Card */}
             <div className="panel flex flex-col justify-between p-4">
               <div>
-                <div className="flex items-center justify-between">
+                <div className="flex flex-wrap items-center justify-between gap-x-2 gap-y-1">
                   <span className="label">Disaster Recovery</span>
                   <span className={`pill ${lastBackup?.lastResult === 'success' ? 'pill-good' : lastBackup ? 'pill-bad' : 'pill-neutral'} text-[10px]`}>
                     {lastBackup?.lastResult === 'success' ? 'Healthy' : lastBackup ? 'Attention' : 'Unconfigured'}
@@ -627,6 +628,8 @@ export const InfraPage: React.FC<InfraPageProps> = ({ snapshot, isPrivacyMode, o
             <TailscaleMatrixSection tailscale={snapshot?.tailscale} isPrivacyMode={isPrivacyMode} />
             <SslTrackerSection certificates={snapshot?.sslCertificates} isPrivacyMode={isPrivacyMode} />
           </div>
+
+          <CloudflareTunnelSection isPrivacyMode={isPrivacyMode} />
         </div>
       )}
 

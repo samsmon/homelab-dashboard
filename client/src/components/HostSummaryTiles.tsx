@@ -45,7 +45,7 @@ export const HostSummaryTiles: React.FC<HostSummaryTilesProps> = ({ host, throug
   return (
     <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4 animate-fade-in-up stagger-1">
       <Tile label="CPU · Proxmox">
-        <div className="flex items-center justify-between">
+        <div className="flex flex-wrap items-center justify-between gap-x-3 gap-y-1">
           <div className="metric-lg">
             {pve.cpuPercent.toFixed(1)}
             <span className="metric-unit">%</span>
@@ -60,7 +60,7 @@ export const HostSummaryTiles: React.FC<HostSummaryTilesProps> = ({ host, throug
       </Tile>
 
       <Tile label="Memory · Host">
-        <div className="flex items-center justify-between">
+        <div className="flex flex-wrap items-center justify-between gap-x-3 gap-y-1">
           <div className="metric-lg">
             {formatBytes(pve.ramUsedBytes)}
             <span className="metric-unit">of {formatBytes(pve.ramTotalBytes)}</span>
@@ -75,7 +75,7 @@ export const HostSummaryTiles: React.FC<HostSummaryTilesProps> = ({ host, throug
       </Tile>
 
       <Tile label="Fleet throughput">
-        <div className="flex items-center justify-between">
+        <div className="flex flex-wrap items-center justify-between gap-x-3 gap-y-1">
           <div className="flex items-baseline gap-3">
             <span className="metric-lg flex items-baseline">
               <ArrowDown className="mr-1 h-3.5 w-3.5 self-center text-cockpit-accent" />
@@ -95,7 +95,7 @@ export const HostSummaryTiles: React.FC<HostSummaryTilesProps> = ({ host, throug
       </Tile>
 
       <Tile label="Package temp">
-        <div className="flex items-center justify-between">
+        <div className="flex flex-wrap items-center justify-between gap-x-3 gap-y-1">
           <div className={`metric-lg ${tempTone.text}`}>
             {temp.toFixed(1)}
             <span className="metric-unit">°C · {tempTone.label}</span>

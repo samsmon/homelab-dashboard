@@ -4,6 +4,7 @@ import { CockpitSnapshot } from '../types.js';
 import { Theme } from '../hooks/useTheme.js';
 import { Header } from '../components/Header.js';
 import { Sidebar } from '../components/Sidebar.js';
+import { MobileNav } from '../components/MobileNav.js';
 import { DasWatchdogAlert } from '../components/DasWatchdogAlert.js';
 
 interface LegacyLayoutProps {
@@ -45,7 +46,7 @@ export const LegacyLayout: React.FC<LegacyLayoutProps> = (props) => {
       </div>
       <div className="mx-auto flex w-full max-w-[1600px] flex-1 items-start gap-5 px-4 sm:px-6 lg:px-8">
         <Sidebar />
-        <main className="w-full min-w-0 flex-1 space-y-6 py-6">
+        <main className="w-full min-w-0 flex-1 space-y-6 pb-[calc(5.5rem+env(safe-area-inset-bottom))] pt-5 md:py-6">
           <DasWatchdogAlert storage={props.snapshot?.storage} />
 
           {props.snapshot?.host.pve && !props.snapshot.host.pve.connected && (
@@ -61,6 +62,7 @@ export const LegacyLayout: React.FC<LegacyLayoutProps> = (props) => {
           <Outlet />
         </main>
       </div>
+      <MobileNav />
     </div>
   );
 };

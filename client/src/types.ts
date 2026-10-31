@@ -491,3 +491,48 @@ export interface DiskTreeNode {
   fileCount: number;
   children: DiskTreeNode[];
 }
+
+export type TunnelDnsState = 'ok' | 'missing' | 'other' | 'unknown';
+
+export interface TunnelHostname {
+  hostname: string;
+  service: string;
+  path?: string;
+  zoneId?: string;
+  zoneName?: string;
+  /** Whether the zone has a CNAME for this hostname that points at its tunnel. */
+  dns: TunnelDnsState;
+  /** When dns is 'other': the tunnel (or raw target) the CNAME points at instead. */
+  dnsTarget?: string;
+}
+
+export interface CloudflareZone {
+  id: string;
+  name: string;
+}
+
+export interface CloudflareConnection {
+  colo: string;
+  originIp?: string;
+  openedAt?: string;
+  version?: string;
+}
+
+export interface CloudflareTunnel {
+  id: string;
+  name: string;
+  status: string;
+  /** Locally-managed tunnels keep their ingress in a config file, so they are read-only here. */
+  managed: 'remote' | 'local';
+  connections: CloudflareConnection[];
+  hostnames: TunnelHostname[];
+}
+
+export interface CloudflareStatus {
+  configured: boolean;
+  isDemo: boolean;
+  zones: CloudflareZone[];
+  tunnels: CloudflareTunnel[];
+  error?: string;
+  warnings?: string[];
+}

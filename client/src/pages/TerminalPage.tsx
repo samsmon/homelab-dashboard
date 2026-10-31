@@ -2,17 +2,25 @@ import React, { useEffect, useState } from 'react';
 import { Terminal as TerminalIcon } from 'lucide-react';
 import { authFetch } from '../utils/api.js';
 import { TerminalView } from '../components/TerminalView.js';
+import { StateBlock } from '../components/StateBlock.js';
 
 export const TerminalPage: React.FC = () => {
   const [targets, setTargets] = useState<string[]>([]);
   const [connectedTarget, setConnectedTarget] = useState<string | null>(null);
+  const [state, setState] = useState<'loading' | 'ready' | 'error'>('loading');
 
-  useEffect(() => {
+  const load = () => {
+    setState('loading');
     authFetch('/api/ssh-targets')
       .then((res) => res.json())
-      .then((data) => setTargets(data.targets ?? []))
-      .catch(() => {});
-  }, []);
+      .then((data) => {
+        setTargets(data.targets ?? []);
+        setState('ready');
+      })
+      .catch(() => setState('error'));
+  };
+
+  useEffect(load, []);
 
   if (connectedTarget) {
     return <TerminalView target={connectedTarget} onDisconnect={() => setConnectedTarget(null)} />;
@@ -28,11 +36,21 @@ export const TerminalPage: React.FC = () => {
       </div>
 
       <div className="px-5 py-4">
-        {targets.length === 0 ? (
-          <p className="text-[13px] text-cockpit-muted">
-            No SSH targets configured. Set <code className="font-mono text-cockpit-text">SSH_TARGETS</code> and{' '}
-            <code className="font-mono text-cockpit-text">SSH_PRIVATE_KEY_PATH</code> to enable this.
-          </p>
+        {state === 'loading' ? (
+          <StateBlock kind="loading" />
+        ) : state === 'error' ? (
+          <StateBlock kind="error" title="Could not load SSH targets" onRetry={load} />
+        ) : targets.length === 0 ? (
+          <StateBlock
+            kind="empty"
+            title="No SSH targets configured"
+            message={
+              <>
+                Set <code className="font-mono text-cockpit-text">SSH_TARGETS</code> and{' '}
+                <code className="font-mono text-cockpit-text">SSH_PRIVATE_KEY_PATH</code> to enable this.
+              </>
+            }
+          />
         ) : (
           <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
             {targets.map((name) => (

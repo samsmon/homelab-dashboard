@@ -146,12 +146,13 @@ export const DiskUsagePage: React.FC = () => {
             Manual, on-demand scan per drive — no background polling. Pick a target, hit Scan, then drill into folders.
           </p>
         </div>
-        <div className="flex items-center gap-2">
+        <div className="flex w-full min-w-0 items-center gap-2 sm:w-auto">
           <select
             value={selectedId}
             onChange={(e) => setSelectedId(e.target.value)}
             disabled={isRunning}
-            className="rounded-md border border-cockpit-border bg-cockpit-panel px-2.5 py-1.5 text-[12.5px] text-cockpit-text disabled:opacity-40"
+            aria-label="Scan target"
+            className="field min-w-0 flex-1 disabled:opacity-40 sm:flex-none"
           >
             {targets.map((t) => (
               <option key={t.id} value={t.id}>

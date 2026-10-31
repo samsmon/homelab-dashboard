@@ -368,7 +368,7 @@ export const AiAgentsPage: React.FC = () => {
                             title={`${day.date}: ${day.count} turns`}
                           />
                         </div>
-                        <span className="font-mono text-[9.5px] font-bold text-cockpit-muted uppercase">{day.dayName}</span>
+                        <span className="font-mono text-[11px] font-bold text-cockpit-muted uppercase">{day.dayName}</span>
                         <span className="font-mono text-[9px] text-cockpit-text font-bold">{day.count}</span>
                       </div>
                     );

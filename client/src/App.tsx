@@ -18,6 +18,8 @@ import { ProcessesPage } from './pages/ProcessesPage.js';
 import { AiAgentsPage } from './pages/AiAgentsPage.js';
 import { LogsPage } from './pages/LogsPage.js';
 import { DiskUsagePage } from './pages/DiskUsagePage.js';
+import { CloudflarePage } from './pages/CloudflarePage.js';
+import { SettingsPage } from './pages/SettingsPage.js';
 import { LegacyLayout } from './layouts/LegacyLayout.js';
 
 // Lazy-loaded: xterm.js is heavy and only needed by owners who use SSH.
@@ -28,7 +30,7 @@ import { MetricHistoryProvider } from './context/MetricHistoryContext.js';
 function CockpitDashboard() {
   const { isAuthenticated, isLoading } = useAuth();
   const { snapshot, isConnected, lastUpdated, refetch } = useCockpitData();
-  const { theme, toggleTheme } = useTheme();
+  const { theme, setTheme, toggleTheme } = useTheme();
 
   const [activeLogContainer, setActiveLogContainer] = useState<ContainerMetric | null>(null);
   const [activeRestartContainer, setActiveRestartContainer] = useState<ContainerMetric | null>(null);
@@ -56,6 +58,13 @@ function CockpitDashboard() {
     };
     window.addEventListener('keydown', handleKeyDown);
     return () => window.removeEventListener('keydown', handleKeyDown);
+  }, []);
+
+  // Keep the flag in sync when fullscreen is left with Esc or F11, not just via the menu.
+  useEffect(() => {
+    const sync = () => setIsFullscreen(Boolean(document.fullscreenElement));
+    document.addEventListener('fullscreenchange', sync);
+    return () => document.removeEventListener('fullscreenchange', sync);
   }, []);
 
   const toggleFullscreen = () => {
@@ -115,12 +124,21 @@ function CockpitDashboard() {
           onOpenPruneModal={() => setIsPruneModalOpen(true)} 
         />
       } />
-      <Route path="processes" element={<ProcessesPage />} />
+      <Route path="cloudflare" element={<CloudflarePage isPrivacyMode={isPrivacyMode} />} />
+      <Route path="settings" element={
+        <SettingsPage
+          theme={theme}
+          onSetTheme={setTheme}
+          currentPveNode={snapshot?.host.pve?.nodeName}
+          onSettingsUpdated={refetch}
+        />
+      } />
+      <Route path="processes" element={<ProcessesPage isPrivacyMode={isPrivacyMode} />} />
       <Route path="sentinel" element={<SentinelPage sentinel={snapshot?.sentinel} />} />
       <Route path="ai-agents" element={<AiAgentsPage />} />
-      <Route path="logs" element={<LogsPage />} />
+      <Route path="logs" element={<LogsPage isPrivacyMode={isPrivacyMode} />} />
       <Route path="disk-usage" element={<DiskUsagePage />} />
-      <Route path="git-projects" element={<GitProjectsPage snapshot={snapshot} onRefetch={refetch} />} />
+      <Route path="git-projects" element={<GitProjectsPage snapshot={snapshot} onRefetch={refetch} isPrivacyMode={isPrivacyMode} />} />
       <Route path="terminal" element={
         <Suspense fallback={<p className="label font-mono text-[10.5px]">Loading terminal…</p>}>
           <TerminalPage />

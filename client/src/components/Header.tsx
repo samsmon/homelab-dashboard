@@ -1,8 +1,6 @@
 import React from 'react';
-import { NavLink } from 'react-router-dom';
 import {
   Server,
-  Settings,
   RefreshCw,
   Eye,
   EyeOff,
@@ -17,10 +15,8 @@ import {
 import { CockpitSnapshot } from '../types.js';
 import { useAuth } from '../context/AuthContext.js';
 import { Theme } from '../hooks/useTheme.js';
-import { NAV_ROUTES } from './Sidebar.js';
 import { ClockWeatherWidget } from './ClockWeatherWidget.js';
 import { NotificationsPanel } from './NotificationsPanel.js';
-import { UserSettingsModal } from './UserSettingsModal.js';
 
 interface HeaderProps {
   snapshot: CockpitSnapshot | null;
@@ -50,7 +46,6 @@ export const Header: React.FC<HeaderProps> = ({
   onRefresh,
 }) => {
   const { username, logout } = useAuth();
-  const [isSettingsOpen, setIsSettingsOpen] = React.useState(false);
   const [isMoreOpen, setIsMoreOpen] = React.useState(false);
   const moreRef = React.useRef<HTMLDivElement>(null);
 
@@ -88,7 +83,7 @@ export const Header: React.FC<HeaderProps> = ({
       <div className="mx-auto w-full max-w-[1600px] px-4 sm:px-6 lg:px-8">
         {/* Primary bar */}
         <div className="flex items-center justify-between gap-3 sm:gap-6 py-3">
-          <div className="flex items-center gap-2.5 sm:gap-3 min-w-0">
+          <div className="flex min-w-0 flex-1 items-center gap-2.5 sm:flex-none sm:gap-3">
             <div className="relative flex h-8 w-8 sm:h-9 sm:w-9 shrink-0 items-center justify-center rounded-lg border border-cockpit-border bg-cockpit-panel text-cockpit-accent">
               <Server className="h-4 w-4 sm:h-[18px] sm:w-[18px]" />
               <span
@@ -100,12 +95,12 @@ export const Header: React.FC<HeaderProps> = ({
             </div>
             <div className="min-w-0">
               <div className="flex items-center gap-1.5 sm:gap-2">
-                <h1 className="text-[14px] sm:text-[15px] font-extrabold tracking-tight text-cockpit-text">Dashboard</h1>
+                <h1 className="truncate text-[14px] sm:text-[15px] font-extrabold tracking-tight text-cockpit-text">Dashboard</h1>
                 {username && <span className="pill pill-neutral normal-case hidden sm:inline-flex">{username}</span>}
-                {snapshot?.isDemoMode && <span className="pill pill-warn">Demo</span>}
+                {snapshot?.isDemoMode && <span className="pill pill-warn hidden sm:inline-flex">Demo</span>}
               </div>
               <p className="label mt-0.5 truncate normal-case tracking-normal text-[10px] sm:text-[10.5px]">
-                Owner POV{displayNodeName ? ` · ${displayNodeName}` : ''}
+                Owner POV{displayNodeName ? ` · ${displayNodeName}` : ''}{snapshot?.isDemoMode ? <span className="text-state-warn sm:hidden"> · Demo</span> : null}
               </p>
             </div>
           </div>
@@ -127,13 +122,15 @@ export const Header: React.FC<HeaderProps> = ({
 
             <NotificationsPanel />
 
-            <button
-              onClick={onToggleTheme}
-              title={theme === 'dark' ? 'Switch to light mode' : 'Switch to dark mode'}
-              className="icon-btn"
-            >
-              {theme === 'dark' ? <Sun className="h-3.5 w-3.5" /> : <Moon className="h-3.5 w-3.5" />}
-            </button>
+            <span className="hidden sm:contents">
+              <button
+                onClick={onToggleTheme}
+                title={theme === 'dark' ? 'Switch to light mode' : 'Switch to dark mode'}
+                className="icon-btn"
+              >
+                {theme === 'dark' ? <Sun className="h-3.5 w-3.5" /> : <Moon className="h-3.5 w-3.5" />}
+              </button>
+            </span>
 
             <button
               onClick={onTogglePrivacy}
@@ -154,16 +151,6 @@ export const Header: React.FC<HeaderProps> = ({
 
               {isMoreOpen && (
                 <div className="absolute right-0 top-[calc(100%+8px)] z-50 w-52 overflow-hidden rounded-xl border border-cockpit-border/60 bg-cockpit-panel/95 backdrop-blur-xl shadow-panel animate-fade-in">
-                  <button
-                    onClick={() => {
-                      setIsMoreOpen(false);
-                      setIsSettingsOpen(true);
-                    }}
-                    className="flex w-full items-center gap-2.5 px-3.5 py-2.5 text-left text-[12.5px] font-medium text-cockpit-text transition-colors hover:bg-cockpit-panelHover"
-                  >
-                    <Settings className="h-3.5 w-3.5 text-cockpit-muted" />
-                    Settings
-                  </button>
                   <button
                     onClick={() => {
                       setIsMoreOpen(false);
@@ -206,7 +193,7 @@ export const Header: React.FC<HeaderProps> = ({
         </div>
 
         {/* Sub-header status bar */}
-        <div className="flex items-center justify-between border-t border-cockpit-border/60 py-1.5 text-[11px] font-mono text-cockpit-muted">
+        <div className="hidden items-center justify-between border-t border-cockpit-border/60 py-1.5 text-[11px] font-mono text-cockpit-muted sm:flex">
           <div className="flex items-center gap-2">
             <span
               className={`inline-block h-1.5 w-1.5 rounded-full ${
@@ -219,32 +206,7 @@ export const Header: React.FC<HeaderProps> = ({
             {lastUpdated ? `Updated ${lastUpdated.toLocaleTimeString()}` : '—'}
           </div>
         </div>
-
-        {/* Nav for small screens */}
-        <nav className="flex items-center gap-1.5 pb-2.5 overflow-x-auto scrollbar-none whitespace-nowrap md:hidden">
-          {NAV_ROUTES.map((route) => (
-            <NavLink
-              key={route.path}
-              to={route.path}
-              end={route.path === '/'}
-              className={({ isActive }: { isActive: boolean }) =>
-                `rounded-md px-2.5 py-1 font-mono text-[11px] uppercase tracking-[0.08em] shrink-0 transition-colors ${
-                  isActive ? 'bg-cockpit-accent/15 text-cockpit-accent font-semibold' : 'text-cockpit-muted hover:text-cockpit-text'
-                }`
-              }
-            >
-              {route.label}
-            </NavLink>
-          ))}
-        </nav>
       </div>
-
-      <UserSettingsModal
-        isOpen={isSettingsOpen}
-        onClose={() => setIsSettingsOpen(false)}
-        currentPveNode={pve?.nodeName}
-        onSettingsUpdated={onRefresh}
-      />
     </header>
   );
 };

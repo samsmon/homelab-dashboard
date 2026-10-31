@@ -2,7 +2,8 @@ import React, { useEffect, useMemo, useState } from 'react';
 import { Search, X } from 'lucide-react';
 import { ProcessMetric } from '../types.js';
 import { authFetch } from '../utils/api.js';
-import { formatBytes, formatNetworkRate, getStatusColor } from '../utils/formatters.js';
+import { StateBlock } from '../components/StateBlock.js';
+import { formatBytes, formatNetworkRate, getStatusColor, redactFreeText } from '../utils/formatters.js';
 
 type SortKey = 'cpu' | 'mem' | 'name' | 'disk';
 
@@ -11,8 +12,9 @@ type SortKey = 'cpu' | 'mem' | 'name' | 'disk';
 // all, not all three sources at once.
 const POLL_MS: Record<string, number> = { host: 3000, docker: 5000 };
 const REMOTE_POLL_MS = 8000;
+const PAGE_SIZE = 50;
 
-export const ProcessesPage: React.FC = () => {
+export const ProcessesPage: React.FC<{ isPrivacyMode?: boolean }> = ({ isPrivacyMode = false }) => {
   const [sshTargets, setSshTargets] = useState<string[]>([]);
   const [source, setSource] = useState('host');
   const [processes, setProcesses] = useState<ProcessMetric[]>([]);
@@ -20,6 +22,14 @@ export const ProcessesPage: React.FC = () => {
   const [sortBy, setSortBy] = useState<SortKey>('cpu');
   const [sortOrder, setSortOrder] = useState<'asc' | 'desc'>('desc');
   const [isLoading, setIsLoading] = useState(true);
+  const [loadError, setLoadError] = useState(false);
+  const [reloadKey, setReloadKey] = useState(0);
+  const [visibleCount, setVisibleCount] = useState(PAGE_SIZE);
+
+  // Switching source or filter starts again from the top of the list.
+  useEffect(() => {
+    setVisibleCount(PAGE_SIZE);
+  }, [source, search]);
 
   useEffect(() => {
     authFetch('/api/ssh-targets')
@@ -46,11 +56,15 @@ export const ProcessesPage: React.FC = () => {
         .then((data: ProcessMetric[]) => {
           if (!cancelled) {
             setProcesses(data);
+            setLoadError(false);
             setIsLoading(false);
           }
         })
         .catch(() => {
-          if (!cancelled) setIsLoading(false);
+          if (!cancelled) {
+            setLoadError(true);
+            setIsLoading(false);
+          }
         });
     };
 
@@ -60,7 +74,7 @@ export const ProcessesPage: React.FC = () => {
       cancelled = true;
       clearInterval(interval);
     };
-  }, [source]);
+  }, [source, reloadKey]);
 
   const toggleSort = (column: SortKey) => {
     if (sortBy === column) {
@@ -95,6 +109,7 @@ export const ProcessesPage: React.FC = () => {
       });
   }, [processes, search, sortBy, sortOrder]);
 
+  const shown = filtered.slice(0, visibleCount);
   const hasDiskData = processes.some((p) => p.diskReadBytesPerSec !== undefined);
   const hasMemBytes = processes.some((p) => p.memBytes > 0);
 
@@ -171,10 +186,43 @@ export const ProcessesPage: React.FC = () => {
         </div>
       </div>
 
-      <div className="overflow-x-auto scrollbar-thin">
+      <div className="sm:hidden">
+        <div className="flex items-center gap-2 border-b border-cockpit-border px-4 py-2.5">
+          <span className="label shrink-0">Sort</span>
+          <div className="seg">
+            {(['cpu', 'mem', 'name'] as SortKey[]).map((key) => (
+              <button key={key} onClick={() => toggleSort(key)} className={`seg-btn ${sortBy === key ? 'seg-btn-on' : ''}`}>
+                {key === 'mem' ? 'Memory' : key === 'cpu' ? 'CPU' : 'Name'}
+                {sortBy === key && <span aria-hidden="true"> {sortOrder === 'desc' ? '↓' : '↑'}</span>}
+              </button>
+            ))}
+          </div>
+        </div>
+        <ul className="divide-y divide-cockpit-border">
+          {shown.map((p) => (
+            <li key={`m-${p.source ?? ''}-${p.pid}-${p.name}`} className="flex items-center gap-3 px-4 py-3">
+              <div className="min-w-0 flex-1">
+                <p className="truncate text-[13px] font-semibold text-cockpit-text">{p.name}</p>
+                <p className="truncate font-mono text-[11px] text-cockpit-muted">{redactFreeText(p.command, isPrivacyMode)}</p>
+                <p className="font-mono text-[11px] text-cockpit-muted">
+                  PID {p.pid} · {p.user}
+                </p>
+              </div>
+              <div className="shrink-0 text-right">
+                <p className={`metric text-[13px] tabular-nums ${getStatusColor(p.cpuPercent).text}`}>{p.cpuPercent.toFixed(1)}%</p>
+                <p className="font-mono text-[11px] tabular-nums text-cockpit-muted">
+                  {hasMemBytes ? formatBytes(p.memBytes) : `${p.memPercent.toFixed(1)}%`}
+                </p>
+              </div>
+            </li>
+          ))}
+        </ul>
+      </div>
+
+      <div className="hidden overflow-x-auto scrollbar-thin sm:block">
         <table className="w-full min-w-0 text-left text-[13px]">
           <thead>
-            <tr className="border-b border-cockpit-border font-mono text-[10px] uppercase tracking-[0.09em] text-cockpit-muted">
+            <tr className="border-b border-cockpit-border font-mono text-[11px] uppercase tracking-[0.09em] text-cockpit-muted">
               <SortHeader column="name" className="w-auto">Process</SortHeader>
               <th className="hidden sm:table-cell px-4 py-2.5 font-medium w-24">PID</th>
               <th className="hidden md:table-cell px-4 py-2.5 font-medium w-28">User</th>
@@ -186,25 +234,19 @@ export const ProcessesPage: React.FC = () => {
             </tr>
           </thead>
           <tbody className="animate-fadeIn">
-            {filtered.map((p) => {
+            {shown.map((p) => {
               const cpuTone = getStatusColor(p.cpuPercent);
               return (
                 <tr
                   key={`${p.source ?? ''}-${p.pid}-${p.name}`}
                   className="border-b border-cockpit-border transition-colors last:border-b-0 hover:bg-cockpit-panelHover"
                 >
-                  <td className="px-4 py-3 min-w-[140px]">
+                  <td className="w-full max-w-0 px-4 py-3">
                     <div className="min-w-0">
                       <span className="block font-semibold text-cockpit-text truncate">{p.name}</span>
-                      <span className="block truncate font-mono text-[10.5px] text-cockpit-muted" title={p.command}>
-                        {p.command}
+                      <span className="block truncate font-mono text-[11px] text-cockpit-muted" title={redactFreeText(p.command, isPrivacyMode)}>
+                        {redactFreeText(p.command, isPrivacyMode)}
                       </span>
-                      {/* Mobile metadata subline */}
-                      <div className="mt-0.5 flex items-center gap-1.5 font-mono text-[10px] text-cockpit-muted sm:hidden">
-                        <span>PID {p.pid}</span>
-                        <span>·</span>
-                        <span>{p.user}</span>
-                      </div>
                     </div>
                   </td>
                   <td className="hidden sm:table-cell px-4 py-3 font-mono text-[12px] tabular-nums text-cockpit-muted whitespace-nowrap">
@@ -221,7 +263,7 @@ export const ProcessesPage: React.FC = () => {
                       {hasMemBytes ? formatBytes(p.memBytes) : `${p.memPercent.toFixed(1)}%`}
                     </span>
                     {hasMemBytes && (
-                      <span className="ml-1.5 font-mono text-[10.5px] text-cockpit-muted tabular-nums">
+                      <span className="ml-1.5 font-mono text-[11px] text-cockpit-muted tabular-nums">
                         {p.memPercent.toFixed(1)}%
                       </span>
                     )}
@@ -239,14 +281,41 @@ export const ProcessesPage: React.FC = () => {
           </tbody>
         </table>
 
-        {!isLoading && filtered.length === 0 && (
-          <p className="px-5 py-10 text-center text-[13px] text-cockpit-muted">
-            {source === 'docker'
-              ? 'No running containers reported a process list — some base images ship a ps that this cannot parse.'
-              : 'No processes match this filter.'}
-          </p>
-        )}
       </div>
+
+      {isLoading && processes.length === 0 && <StateBlock kind="loading" />}
+      {!isLoading && loadError && processes.length === 0 && (
+        <StateBlock kind="error" title="Could not load processes" message="The source did not answer." onRetry={() => setReloadKey((k) => k + 1)} />
+      )}
+      {!isLoading && !loadError && filtered.length === 0 && (
+        <StateBlock
+          kind="empty"
+          title="No processes to show"
+          message={
+            source === 'docker'
+              ? 'No running containers reported a process list; some base images ship a ps that this cannot parse.'
+              : 'No processes match this filter.'
+          }
+        />
+      )}
+
+      {filtered.length > PAGE_SIZE && (
+        <div className="flex flex-wrap items-center justify-between gap-2 border-t border-cockpit-border px-4 py-3 text-[11.5px] text-cockpit-muted sm:px-5">
+          <span>
+            Showing {shown.length} of {filtered.length}
+          </span>
+          {shown.length < filtered.length && (
+            <div className="flex gap-2">
+              <button onClick={() => setVisibleCount((n) => n + PAGE_SIZE)} className="btn-ghost text-[12px]">
+                Show {Math.min(PAGE_SIZE, filtered.length - shown.length)} more
+              </button>
+              <button onClick={() => setVisibleCount(filtered.length)} className="btn-ghost text-[12px]">
+                Show all
+              </button>
+            </div>
+          )}
+        </div>
+      )}
 
       {source === 'host' && !hasDiskData && !isLoading && processes.length > 0 && (
         <p className="border-t border-cockpit-border px-5 py-3 text-[11.5px] text-cockpit-muted">

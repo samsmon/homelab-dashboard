@@ -30,6 +30,20 @@ export function redactText(text: string, isPrivacy: boolean): string {
   return '••••••';
 }
 
+const FREE_TEXT_DOMAIN = /\b(?:[a-z0-9-]+\.)+(com|net|org|io|dev|app|id|co|me|xyz|local|lan|home|cloud|ai|tech|online|site)\b/gi;
+const FREE_TEXT_IPV4 = /\b(\d{1,3})\.(\d{1,3})\.\d{1,3}\.\d{1,3}\b/g;
+
+/**
+ * Privacy-mode redaction for sentences (log lines, command lines) that embed IPs or hostnames,
+ * where redactText would hide the whole string. Keeps the surrounding words readable.
+ */
+export function redactFreeText(text: string, isPrivacy: boolean): string {
+  if (!isPrivacy || !text) return text;
+  return text
+    .replace(FREE_TEXT_IPV4, '$1.$2.•••.•••')
+    .replace(FREE_TEXT_DOMAIN, (_m, tld: string) => `••••••.${tld}`);
+}
+
 export function formatUptime(seconds: number): string {
   if (!seconds || seconds <= 0) return '0m';
   const days = Math.floor(seconds / 86400);

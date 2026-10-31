@@ -779,7 +779,7 @@ export const BookmarksSection: React.FC = () => {
                   {b.name}
                 </span>
                 {b.group && (
-                  <span className="pointer-events-none font-mono text-[9.5px] text-cockpit-muted">
+                  <span className="pointer-events-none font-mono text-[11px] text-cockpit-muted">
                     {b.group}
                   </span>
                 )}

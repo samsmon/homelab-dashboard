@@ -4,13 +4,16 @@ import { CockpitSnapshot, GitProjectStatus } from '../types.js';
 import { GitProjectModal } from '../components/GitProjectModal.js';
 import { GitPullInline } from '../components/GitPullInline.js';
 import { authFetch } from '../utils/api.js';
+import { redactText } from '../utils/formatters.js';
+import { StateBlock } from '../components/StateBlock.js';
 
 interface GitProjectsPageProps {
   snapshot: CockpitSnapshot | null;
   onRefetch: () => void;
+  isPrivacyMode?: boolean;
 }
 
-export const GitProjectsPage: React.FC<GitProjectsPageProps> = ({ snapshot, onRefetch }) => {
+export const GitProjectsPage: React.FC<GitProjectsPageProps> = ({ snapshot, onRefetch, isPrivacyMode = false }) => {
   const [editingProject, setEditingProject] = useState<GitProjectStatus | null>(null);
   const [expandedContainer, setExpandedContainer] = useState<string | null>(null);
   const [isAdding, setIsAdding] = useState(false);
@@ -74,10 +77,17 @@ export const GitProjectsPage: React.FC<GitProjectsPageProps> = ({ snapshot, onRe
         </div>
 
         {projects.length === 0 ? (
-          <p className="animate-fadeIn px-5 py-10 text-center text-[13px] text-cockpit-muted">
-            Track a container that's built from your own git repo — a personal project, not an off-the-shelf
-            service — to see when it has new commits upstream.
-          </p>
+          <StateBlock
+            kind="empty"
+            title="Nothing tracked yet"
+            message="Track a container that is built from your own git repo (a personal project, not an off-the-shelf service) to see when it has new commits upstream."
+            action={
+              <button onClick={() => setIsAdding(true)} className="btn-primary mt-1">
+                <Plus className="h-3.5 w-3.5" />
+                Track a project
+              </button>
+            }
+          />
         ) : (
           <div className="px-5 py-1.5">
             {projects.map((project) => {
@@ -90,7 +100,7 @@ export const GitProjectsPage: React.FC<GitProjectsPageProps> = ({ snapshot, onRe
                   <div className="data-row flex-wrap gap-3 border-b-0">
                     <button
                       onClick={() => setEditingProject(project)}
-                      className="flex min-w-0 flex-1 items-center gap-2.5 text-left"
+                      className="flex min-w-0 flex-1 basis-full items-center gap-2.5 text-left sm:basis-0"
                       title="Edit this project"
                     >
                       <GitBranch className="h-3.5 w-3.5 shrink-0 text-cockpit-muted" />
@@ -105,8 +115,11 @@ export const GitProjectsPage: React.FC<GitProjectsPageProps> = ({ snapshot, onRe
                         </span>
                         <span className="block truncate font-mono text-[11px] text-cockpit-muted">
                           {project.repoOwner}/{project.repoName}@{project.branch}
-                          {project.sshTarget && ` · ssh:${project.sshTarget}`}
+                          {project.sshTarget && ` · ssh:${redactText(project.sshTarget, isPrivacyMode)}`}
                         </span>
+                        {project.latestCommitMessage && (
+                          <span className="mt-0.5 block truncate text-[12px] text-cockpit-text sm:hidden">{project.latestCommitMessage}</span>
+                        )}
                         {project.autoDeployBlocked && (
                           <span className="block text-[11px] text-state-warn">
                             Auto-deploy paused — a migration-risk file was detected, pull manually to review it
@@ -115,13 +128,13 @@ export const GitProjectsPage: React.FC<GitProjectsPageProps> = ({ snapshot, onRe
                       </span>
                     </button>
 
-                    <div className="flex shrink-0 items-center gap-2.5">
+                    <div className="flex w-full flex-wrap items-center justify-between gap-2.5 sm:w-auto sm:shrink-0 sm:flex-nowrap sm:justify-end">
                       {project.latestCommitMessage ? (
                         <span className="hidden text-right sm:block">
                           <span className="block max-w-[240px] truncate text-[12px] text-cockpit-text">
                             {project.latestCommitMessage}
                           </span>
-                          <span className="block font-mono text-[10.5px] text-cockpit-muted">
+                          <span className="block font-mono text-[11px] text-cockpit-muted">
                             {project.latestCommitDate ? new Date(project.latestCommitDate).toLocaleString() : ''}
                           </span>
                         </span>
@@ -169,14 +182,14 @@ export const GitProjectsPage: React.FC<GitProjectsPageProps> = ({ snapshot, onRe
                         onClick={() => setExpandedContainer(isExpanded ? null : project.containerName)}
                         disabled={!canPull}
                         title={canPull ? 'Open pull & redeploy options' : 'Set a local path and rebuild command to enable this'}
-                        className={`inline-flex items-center gap-1.5 rounded-lg border px-2.5 py-1 text-[11.5px] font-semibold transition-all ${
+                        className={`inline-flex min-h-[2.5rem] items-center gap-1.5 rounded-lg border px-2.5 py-1 text-[11.5px] font-semibold transition-all sm:min-h-0 ${
                           isExpanded
                             ? 'border-cockpit-accent bg-cockpit-accent/15 text-cockpit-accent'
                             : 'border-cockpit-border bg-cockpit-panel text-cockpit-text hover:border-cockpit-accent/40 hover:text-cockpit-accent'
                         } disabled:opacity-30`}
                       >
                         <RotateCcw className="h-3 w-3" />
-                        <span className="hidden sm:inline">{isExpanded ? 'Close Console' : 'Pull & Deploy'}</span>
+                        <span>{isExpanded ? 'Close' : 'Deploy'}</span>
                         <ChevronDown className={`h-3 w-3 transition-transform ${isExpanded ? 'rotate-180' : ''}`} />
                       </button>
                     </div>

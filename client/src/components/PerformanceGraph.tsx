@@ -27,6 +27,10 @@ const COLOR_MAP: Record<GraphTone, { stroke: string; fill: string; hex: string }
   cyan: { stroke: '#06b6d4', fill: 'rgba(6, 182, 212, 0.22)', hex: '#06b6d4' },
 };
 
+// Chart colors are tuned for strokes on a dark surface; for text, blend toward the theme's text color
+// so the legend value stays readable (4.5:1) on both the dark and the light theme.
+const textColor = (hex: string): string => `color-mix(in srgb, ${hex} 65%, rgb(var(--cockpit-text)))`;
+
 export const PerformanceGraph: React.FC<PerformanceGraphProps> = ({
   title,
   subtitle,
@@ -165,7 +169,7 @@ export const PerformanceGraph: React.FC<PerformanceGraphProps> = ({
             {currentSecVal !== null && secondaryFormatter && (
               <span
                 className="font-mono text-[12.5px] font-medium tabular-nums"
-                style={{ color: secColors.hex }}
+                style={{ color: textColor(secColors.hex) }}
               >
                 / {secondaryFormatter(currentSecVal)}
               </span>
@@ -221,7 +225,7 @@ export const PerformanceGraph: React.FC<PerformanceGraphProps> = ({
                   x={paddingLeft - 6}
                   y={y + 3}
                   textAnchor="end"
-                  className="fill-cockpit-muted text-[9.5px] font-mono tabular-nums"
+                  className="fill-cockpit-muted text-[10.5px] font-mono tabular-nums"
                 >
                   {valueFormatter(labelVal).replace(/[^0-9.KMGTB%°C\/s]/g, '')}
                 </text>
@@ -344,7 +348,7 @@ export const PerformanceGraph: React.FC<PerformanceGraphProps> = ({
               transform: hoverPointPrimary.x > width * 0.75 ? 'translateX(-105%)' : 'translateX(8px)',
             }}
           >
-            <span className="text-cockpit-muted text-[9.5px]">
+            <span className="text-cockpit-muted text-[11px]">
               {secondsAgo === 0 ? 'Current / Live' : `${secondsAgo}s ago`}
             </span>
             <div className="flex items-center gap-1.5 font-semibold text-cockpit-text">
@@ -352,7 +356,7 @@ export const PerformanceGraph: React.FC<PerformanceGraphProps> = ({
               <span>{valueFormatter(hoverPointPrimary.val)}</span>
             </div>
             {hoverPointSecondary && secondaryFormatter && (
-              <div className="flex items-center gap-1.5 font-medium" style={{ color: secColors.hex }}>
+              <div className="flex items-center gap-1.5 font-medium" style={{ color: textColor(secColors.hex) }}>
                 <span className="h-1.5 w-1.5 rounded-full" style={{ backgroundColor: secColors.hex }} />
                 <span>{secondaryFormatter(hoverPointSecondary.val)}</span>
               </div>

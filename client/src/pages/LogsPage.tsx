@@ -1,10 +1,13 @@
 import { createPortal } from 'react-dom';
 import React, { useEffect, useMemo, useState } from 'react';
-import { Trash2, RefreshCw, Eye, Copy, Check, X } from 'lucide-react';
+import { Trash2, RefreshCw, Copy, Check, X } from 'lucide-react';
 import { authFetch } from '../utils/api.js';
 import { AuditCategory, AuditLevel, AuditLogEntry } from '../types.js';
+import { StateBlock } from '../components/StateBlock.js';
+import { redactFreeText } from '../utils/formatters.js';
 
 const POLL_MS = 5000;
+const PAGE_SIZE = 50;
 
 const CATEGORIES: (AuditCategory | 'all')[] = [
   'all',
@@ -31,12 +34,13 @@ const LEVEL_PILL: Record<AuditLevel, string> = {
 const LogDetailModal: React.FC<{
   entry: AuditLogEntry | null;
   onClose: () => void;
-}> = ({ entry, onClose }) => {
+  isPrivacyMode: boolean;
+}> = ({ entry, onClose, isPrivacyMode }) => {
   const [copied, setCopied] = useState(false);
 
   if (!entry) return null;
 
-  const rawJson = JSON.stringify(entry, null, 2);
+  const rawJson = redactFreeText(JSON.stringify(entry, null, 2), isPrivacyMode);
 
   const copyToClipboard = () => {
     navigator.clipboard.writeText(rawJson);
@@ -68,7 +72,7 @@ const LogDetailModal: React.FC<{
           <div>
             <span className="label block mb-1">Message</span>
             <p className="rounded-lg border border-cockpit-border/60 bg-cockpit-bg/80 p-3 font-medium text-cockpit-text break-words">
-              {entry.message}
+              {redactFreeText(entry.message, isPrivacyMode)}
             </p>
           </div>
 
@@ -87,7 +91,7 @@ const LogDetailModal: React.FC<{
             <div>
               <span className="label block mb-1">Full Detail</span>
               <pre className="max-h-64 overflow-y-auto rounded-lg border border-cockpit-border/70 bg-black/70 p-3 font-mono text-[11.5px] leading-relaxed text-cockpit-text whitespace-pre-wrap break-all">
-                {entry.detail}
+                {redactFreeText(entry.detail, isPrivacyMode)}
               </pre>
             </div>
           )}
@@ -112,19 +116,29 @@ const LogDetailModal: React.FC<{
   );
 };
 
-export const LogsPage: React.FC = () => {
+const formatTime = (iso: string | number, compact: boolean): string =>
+  compact
+    ? new Date(iso).toLocaleString(undefined, { month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' })
+    : new Date(iso).toLocaleString();
+
+export const LogsPage: React.FC<{ isPrivacyMode?: boolean }> = ({ isPrivacyMode = false }) => {
   const [entries, setEntries] = useState<AuditLogEntry[]>([]);
   const [category, setCategory] = useState<AuditCategory | 'all'>('all');
   const [level, setLevel] = useState<AuditLevel | 'all'>('all');
   const [search, setSearch] = useState('');
   const [isLoading, setIsLoading] = useState(true);
+  const [loadError, setLoadError] = useState(false);
   const [selectedEntry, setSelectedEntry] = useState<AuditLogEntry | null>(null);
+  const [visibleCount, setVisibleCount] = useState(PAGE_SIZE);
 
   const load = () => {
     authFetch('/api/audit-log')
       .then((res) => res.json())
-      .then((data) => setEntries(Array.isArray(data) ? data : []))
-      .catch(() => {})
+      .then((data) => {
+        setEntries(Array.isArray(data) ? data : []);
+        setLoadError(false);
+      })
+      .catch(() => setLoadError(true))
       .finally(() => setIsLoading(false));
   };
 
@@ -133,6 +147,11 @@ export const LogsPage: React.FC = () => {
     const interval = setInterval(load, POLL_MS);
     return () => clearInterval(interval);
   }, []);
+
+  // A new filter starts again from the newest page.
+  useEffect(() => {
+    setVisibleCount(PAGE_SIZE);
+  }, [category, level, search]);
 
   const filtered = useMemo(() => {
     const q = search.trim().toLowerCase();
@@ -150,6 +169,8 @@ export const LogsPage: React.FC = () => {
       return true;
     });
   }, [entries, category, level, search]);
+
+  const visible = filtered.slice(0, visibleCount);
 
   const clear = async () => {
     if (!window.confirm('Clear the entire audit log? This cannot be undone.')) return;
@@ -180,15 +201,21 @@ export const LogsPage: React.FC = () => {
           value={search}
           onChange={(e) => setSearch(e.target.value)}
           placeholder="Search message, actor, or detail…"
-          className="field w-full max-w-xs"
+          aria-label="Search log"
+          className="field w-full sm:max-w-xs"
         />
-        <div className="seg">
+        <select
+          value={category}
+          onChange={(e) => setCategory(e.target.value as AuditCategory | 'all')}
+          aria-label="Category"
+          className="field min-w-0 flex-1 sm:flex-none"
+        >
           {CATEGORIES.map((c) => (
-            <button key={c} onClick={() => setCategory(c)} className={`seg-btn ${category === c ? 'seg-btn-on' : ''}`}>
-              {c}
-            </button>
+            <option key={c} value={c}>
+              {c === 'all' ? 'All categories' : c}
+            </option>
           ))}
-        </div>
+        </select>
         <div className="seg">
           {LEVELS.map((l) => (
             <button key={l} onClick={() => setLevel(l)} className={`seg-btn ${level === l ? 'seg-btn-on' : ''}`}>
@@ -199,47 +226,72 @@ export const LogsPage: React.FC = () => {
       </div>
 
       <div className="divide-y divide-cockpit-border/50">
-        {isLoading && <div className="px-4 py-6 text-center text-[12.5px] text-cockpit-muted">Loading…</div>}
-        {!isLoading && filtered.length === 0 && (
-          <div className="px-4 py-6 text-center text-[12.5px] text-cockpit-muted">No log entries match this filter.</div>
+        {isLoading && <StateBlock kind="loading" />}
+        {!isLoading && loadError && entries.length === 0 && (
+          <StateBlock kind="error" title="Could not load the log" message="The server did not answer." onRetry={load} />
         )}
-        {filtered.slice(0, 500).map((entry) => (
+        {!isLoading && !loadError && filtered.length === 0 && (
+          <StateBlock
+            kind="empty"
+            title={entries.length === 0 ? 'The log is empty' : 'No entries match'}
+            message={entries.length === 0 ? 'Actions and errors will show up here as they happen.' : 'Try a different search, category or level.'}
+          />
+        )}
+        {visible.map((entry) => (
           <div
             key={entry.id}
+            role="button"
+            tabIndex={0}
             onClick={() => setSelectedEntry(entry)}
-            className="data-row items-start gap-3 px-4 py-2.5 cursor-pointer hover:bg-cockpit-panelHover/60 transition-colors group"
+            onKeyDown={(e) => {
+              if (e.key === 'Enter' || e.key === ' ') {
+                e.preventDefault();
+                setSelectedEntry(entry);
+              }
+            }}
+            className="flex cursor-pointer flex-col gap-1 px-4 py-2.5 transition-colors hover:bg-cockpit-panelHover/60 focus-visible:bg-cockpit-panelHover/60 focus-visible:outline-none sm:flex-row sm:items-start sm:gap-3"
             title="Click to view full log details"
           >
-            <span className={`pill ${LEVEL_PILL[entry.level]} shrink-0 mt-0.5`}>{entry.level}</span>
-            <span className="label shrink-0 w-20 !normal-case !tracking-normal text-cockpit-muted mt-0.5">{entry.category}</span>
+            <div className="flex items-center gap-2 sm:contents">
+              <span className={`pill ${LEVEL_PILL[entry.level]} shrink-0 sm:mt-0.5`}>{entry.level}</span>
+              <span className="label shrink-0 !normal-case !tracking-normal text-cockpit-muted sm:mt-0.5 sm:w-20">{entry.category}</span>
+              <span className="metric ml-auto whitespace-nowrap text-[11px] text-cockpit-muted sm:hidden">
+                {formatTime(entry.createdAt, true)}
+              </span>
+            </div>
             <div className="min-w-0 flex-1">
-              <p className="text-[12.5px] text-cockpit-text break-words font-medium">{entry.message}</p>
+              <p className="break-words text-[12.5px] font-medium text-cockpit-text">{redactFreeText(entry.message, isPrivacyMode)}</p>
               {entry.detail && (
-                <p className="mt-0.5 font-mono text-[10.5px] text-cockpit-muted line-clamp-2 break-all">{entry.detail}</p>
+                <p className="mt-0.5 line-clamp-2 break-all font-mono text-[11px] text-cockpit-muted">{redactFreeText(entry.detail, isPrivacyMode)}</p>
               )}
             </div>
-            <div className="flex items-center gap-2 shrink-0">
-              <span className="metric text-[11px] text-cockpit-muted whitespace-nowrap">
-                {new Date(entry.createdAt).toLocaleString()}
-              </span>
-              <button
-                type="button"
-                onClick={(e) => {
-                  e.stopPropagation();
-                  setSelectedEntry(entry);
-                }}
-                className="icon-btn h-6 w-6 opacity-0 group-hover:opacity-100 transition-opacity"
-                title="View full log detail"
-              >
-                <Eye className="h-3 w-3" />
-              </button>
-            </div>
+            <span className="metric hidden shrink-0 whitespace-nowrap text-[11px] text-cockpit-muted sm:block">
+              {formatTime(entry.createdAt, false)}
+            </span>
           </div>
         ))}
       </div>
 
+      {filtered.length > 0 && (
+        <div className="flex flex-wrap items-center justify-between gap-2 border-t border-cockpit-border/60 px-4 py-3 text-[11.5px] text-cockpit-muted">
+          <span>
+            Showing {visible.length} of {filtered.length}
+          </span>
+          {visible.length < filtered.length && (
+            <div className="flex gap-2">
+              <button onClick={() => setVisibleCount((n) => n + PAGE_SIZE)} className="btn-ghost text-[12px]">
+                Show {Math.min(PAGE_SIZE, filtered.length - visible.length)} more
+              </button>
+              <button onClick={() => setVisibleCount(filtered.length)} className="btn-ghost text-[12px]">
+                Show all
+              </button>
+            </div>
+          )}
+        </div>
+      )}
+
       {selectedEntry && (
-        <LogDetailModal entry={selectedEntry} onClose={() => setSelectedEntry(null)} />
+        <LogDetailModal entry={selectedEntry} onClose={() => setSelectedEntry(null)} isPrivacyMode={isPrivacyMode} />
       )}
     </div>
   );

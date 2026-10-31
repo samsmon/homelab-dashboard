@@ -30,12 +30,31 @@
   --cockpit-topbar: 255 255 255;
   --cockpit-border: 226 232 240;
   --cockpit-text: 15 23 42;
-  --cockpit-muted: 100 116 139;
+  --cockpit-muted: 82 96 117; /* 5.3:1 or better on every light surface */
   --cockpit-accent: 79 70 229; /* Indigo 600 */
 
-  --state-good: 16 185 129; /* Emerald 500 */
-  --state-warn: 217 119 6; /* Amber 600 */
-  --state-bad: 239 68 68; /* Red 500 */
+  /* Darker than the dark theme so state text and pills stay readable (WCAG AA) on white. */
+  --state-good: 5 105 77; /* Emerald 700-800 */
+  --state-warn: 161 72 8;
+  --state-bad: 185 28 28; /* Red 700 */
+}
+
+/* Indigo text on its own 20% tint is only 4.0:1 in the light theme; a lighter tint passes AA. */
+:root.light .seg-btn-on,
+:root.light .pill-accent {
+  background-color: rgb(var(--cockpit-accent) / 0.1);
+}
+
+/* Visible keyboard focus for everything that is not a .field (which draws its own ring). */
+:where(button, a, summary, [role='button'], [tabindex]):focus-visible {
+  outline: 2px solid rgb(var(--cockpit-accent));
+  outline-offset: 2px;
+}
+
+/* Always show the vertical scrollbar so the page does not jump sideways by the
+   scrollbar's width when a click makes content taller or shorter than the viewport. */
+html {
+  overflow-y: scroll;
 }
 
 body {
@@ -73,7 +92,7 @@ body {
   }
 
   .label {
-    @apply font-mono text-[10.5px] font-medium uppercase tracking-[0.1em] text-cockpit-muted;
+    @apply font-mono text-[11px] font-medium uppercase tracking-[0.1em] text-cockpit-muted;
   }
 
   .metric {
@@ -89,7 +108,7 @@ body {
   }
 
   .pill {
-    @apply inline-flex items-center gap-1.5 rounded-full px-2.5 py-0.5 font-mono text-[10.5px] font-bold uppercase tracking-[0.05em] shadow-sm;
+    @apply inline-flex items-center gap-1.5 rounded-full px-2.5 py-0.5 font-mono text-[11px] font-bold uppercase tracking-[0.05em] shadow-sm;
   }
 
   .pill-good {
@@ -398,4 +417,53 @@ body {
 @keyframes panelIn {
   from { opacity: 0; transform: scale(0.96) translateY(8px); }
   to { opacity: 1; transform: scale(1) translateY(0); }
+}
+
+/* Phones: finger-sized targets for the shared controls. */
+@media (max-width: 639px) {
+  .icon-btn {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    min-width: 2.5rem;
+    min-height: 2.5rem;
+  }
+
+  .seg-btn {
+    min-height: 2.5rem;
+    min-width: 2.5rem;
+  }
+
+  .btn-primary,
+  .btn-ghost,
+  .btn-danger {
+    min-height: 2.5rem;
+  }
+
+  select.field,
+  input.field {
+    min-height: 2.5rem;
+  }
+
+  .label,
+  .pill {
+    font-size: 11px;
+  }
+
+  /* Legibility floor on phones: nothing below 11px. */
+  [class*='text-[10px]'],
+  [class*='text-[10.5px]'],
+  [class*='text-[9px]'] {
+    font-size: 11px !important;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+  }
 }

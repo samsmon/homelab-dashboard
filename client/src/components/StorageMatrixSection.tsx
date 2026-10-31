@@ -46,7 +46,7 @@ export const StorageMatrixSection: React.FC<StorageMatrixSectionProps> = ({
           <div>
             <div className="flex items-center gap-2">
               <h2 className="panel-title">Storage &amp; DAS Watchdog</h2>
-              <span className="pill pill-accent text-[9.5px]">SMART Live</span>
+              <span className="pill pill-accent text-[11px]">SMART Live</span>
             </div>
             <p className="panel-sub">
               Real-time drive diagnostics, hardware wear telemetry &amp; external enclosure disconnect guard
@@ -104,7 +104,7 @@ export const StorageMatrixSection: React.FC<StorageMatrixSectionProps> = ({
                     <ShieldCheck className="h-3.5 w-3.5 text-state-good shrink-0" />
                     <span>{rootDrive.smartStatus || 'PASSED'}</span>
                   </div>
-                  <span className="text-[9.5px] text-cockpit-muted">0 Bad Sectors</span>
+                  <span className="text-[11px] text-cockpit-muted">0 Bad Sectors</span>
                 </div>
 
                 {/* Read Throughput */}
@@ -114,7 +114,7 @@ export const StorageMatrixSection: React.FC<StorageMatrixSectionProps> = ({
                     <ArrowDown className="h-3.5 w-3.5 shrink-0" />
                     <span>{formatBytes(rootDrive.readRateBytesPerSec || 0)}/s</span>
                   </div>
-                  <span className="text-[9.5px] text-cockpit-muted">Host disk I/O</span>
+                  <span className="text-[11px] text-cockpit-muted">Host disk I/O</span>
                 </div>
 
                 {/* Write Throughput */}
@@ -124,7 +124,7 @@ export const StorageMatrixSection: React.FC<StorageMatrixSectionProps> = ({
                     <ArrowUp className="h-3.5 w-3.5 shrink-0" />
                     <span>{formatBytes(rootDrive.writeRateBytesPerSec || 0)}/s</span>
                   </div>
-                  <span className="text-[9.5px] text-cockpit-muted">Host disk I/O</span>
+                  <span className="text-[11px] text-cockpit-muted">Host disk I/O</span>
                 </div>
 
                 {/* Disk Activity */}
@@ -134,7 +134,7 @@ export const StorageMatrixSection: React.FC<StorageMatrixSectionProps> = ({
                     <Activity className="h-3.5 w-3.5 text-cockpit-accent shrink-0" />
                     <span>{(rootDrive.activeTimePercent || 0).toFixed(1)}%</span>
                   </div>
-                  <span className="text-[9.5px] text-cockpit-muted">
+                  <span className="text-[11px] text-cockpit-muted">
                     {rootDrive.avgResponseMs ? `${rootDrive.avgResponseMs.toFixed(1)}ms lat` : 'Low latency'}
                   </span>
                 </div>
