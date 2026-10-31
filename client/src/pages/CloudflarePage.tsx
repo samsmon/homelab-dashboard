@@ -308,7 +308,7 @@ export const CloudflarePage: React.FC<CloudflarePageProps> = ({ isPrivacyMode })
                       {tunnel.managed === 'local' && <span className="pill pill-neutral">local config · read-only</span>}
                     </div>
                     <p className="panel-sub">
-                      {tunnel.connections.length} connector{tunnel.connections.length === 1 ? '' : 's'}
+                      {tunnel.connections.length} edge connection{tunnel.connections.length === 1 ? '' : 's'}
                       {colos.length > 0 && ` · ${colos.join(', ')}`}
                       {tunnel.connections[0]?.openedAt && ` · up ${timeAgo(tunnel.connections[0].openedAt)}`}
                       {tunnel.connections[0]?.version && ` · cloudflared ${tunnel.connections[0].version}`}

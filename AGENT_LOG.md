@@ -5,6 +5,15 @@ This file tracks the activities of all AI agents (Gemini, Claude, etc.) operatin
 
 ---
 
+### [2026-10-31 UTC] (fix)
+**Agent:** Claude (Fix: Cloudflare hostname move order)
+**Status:** `[COMPLETED]`
+**Activities Completed:**
+- `cloudflare.service.ts` `publish()`: the DNS change is now planned before any tunnel is touched (`planDns`), the new tunnel gets the hostname first, DNS is switched (`applyDns`), and the old tunnel releases the hostname last; a DNS failure restores the new tunnel's previous config. Only A, AAAA and CNAME records count as DNS conflicts, so MX and TXT records at a zone apex no longer block a move. Found when moving the apex of a zone left it on a 404 for about a minute.
+- `CloudflarePage.tsx`: "connectors" relabelled "edge connections" (one cloudflared replica opens several).
+
+---
+
 ### [2026-10-31 UTC]
 **Agent:** Claude (UI polish: Fleet, mobile, grouped navigation, Settings page, Cloudflare tunnel manager, accessibility)
 **Status:** `[COMPLETED]`

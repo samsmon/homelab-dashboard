@@ -42,6 +42,8 @@ interface CfDnsRecord {
   content: string;
 }
 
+type DnsPlan = { action: 'none' } | { action: 'create' } | { action: 'repoint'; id: string };
+
 export class CloudflareError extends Error {}
 
 /** The zone whose name is the longest suffix of the hostname, so sub.example.co.id picks example.co.id. */
@@ -230,15 +232,21 @@ export class CloudflareService {
     if (!target) throw new CloudflareError('Unknown tunnel');
     if (!this.isRemote(target)) throw new CloudflareError(`Tunnel ${target.name} is locally managed; edit its config file instead`);
 
-    // Release the hostname from any other tunnel first (only with an explicit move).
+    // Find where the hostname lives now. Taking it over needs an explicit move.
+    const holders: { tunnel: CfTunnel; cfg: TunnelConfig; rules: IngressRule[]; catchAll: IngressRule }[] = [];
     for (const other of tunnels.filter((t) => t.id !== tunnelId && this.isRemote(t))) {
       const cfg = await this.readConfig(other.id);
       const { rules, catchAll } = this.splitIngress(cfg);
       if (!rules.some((r) => r.hostname === hostname)) continue;
       if (!move) throw new CloudflareError(`${hostname} is already on tunnel ${other.name}; use Move to take it over`);
-      await this.writeConfig(other.id, { ...cfg, ingress: [...rules.filter((r) => r.hostname !== hostname), catchAll] });
+      holders.push({ tunnel: other, cfg, rules, catchAll });
     }
 
+    // Decide the DNS change before touching any tunnel, so a refusal leaves everything as it was.
+    const dnsPlan = await this.planDns(zone, hostname, tunnelId, move);
+
+    // Order keeps traffic flowing: the new tunnel learns the hostname first, DNS switches next,
+    // and the old tunnel only lets go once DNS points at the new one.
     const cfg = await this.readConfig(tunnelId);
     const { rules, catchAll } = this.splitIngress(cfg);
     const existing = rules.find((r) => r.hostname === hostname && !r.path);
@@ -246,7 +254,16 @@ export class CloudflareService {
     const next = existing ? rules.map((r) => (r === existing ? updated : r)) : [...rules, updated];
     await this.writeConfig(tunnelId, { ...cfg, ingress: [...next, catchAll] });
 
-    await this.ensureDns(zone, hostname, tunnelId, move);
+    try {
+      await this.applyDns(zone, hostname, tunnelId, dnsPlan);
+    } catch (e) {
+      await this.writeConfig(tunnelId, cfg); // put the new tunnel back exactly as it was
+      throw e;
+    }
+
+    for (const h of holders) {
+      await this.writeConfig(h.tunnel.id, { ...h.cfg, ingress: [...h.rules.filter((r) => r.hostname !== hostname), h.catchAll] });
+    }
     this.cache = null;
     return { hostname, service, zoneId: zone.id, zoneName: zone.name, dns: 'ok' };
   }
@@ -282,21 +299,29 @@ export class CloudflareService {
     this.cache = null;
   }
 
-  private async ensureDns(zone: CloudflareZone, hostname: string, tunnelId: string, move: boolean): Promise<void> {
+  /**
+   * Works out what the zone needs, without changing anything. Only address and alias records
+   * conflict with a tunnel CNAME; MX, TXT and similar can share the name (zone apex included).
+   */
+  private async planDns(zone: CloudflareZone, hostname: string, tunnelId: string, move: boolean): Promise<DnsPlan> {
     const content = `${tunnelId}${TUNNEL_TARGET_SUFFIX}`;
     const records = await this.call<CfDnsRecord[]>('GET', `/zones/${zone.id}/dns_records?name=${encodeURIComponent(hostname)}`);
-    if (records.some((r) => r.type === 'CNAME' && r.content === content)) return;
+    const alias = records.filter((r) => r.type === 'A' || r.type === 'AAAA' || r.type === 'CNAME');
+    if (alias.some((r) => r.type === 'CNAME' && r.content === content)) return { action: 'none' };
 
-    const body = { type: 'CNAME', name: hostname, content, proxied: true };
-    const stale = records.find((r) => r.type === 'CNAME' && r.content.endsWith(TUNNEL_TARGET_SUFFIX));
-    if (stale && move && records.length === 1) {
-      await this.call('PUT', `/zones/${zone.id}/dns_records/${stale.id}`, body);
-      return;
-    }
-    if (records.length > 0) {
+    const stale = alias.find((r) => r.type === 'CNAME' && r.content.endsWith(TUNNEL_TARGET_SUFFIX));
+    if (stale && move && alias.length === 1) return { action: 'repoint', id: stale.id };
+    if (alias.length > 0) {
       throw new CloudflareError(`${hostname} already has a DNS record that is not this tunnel; remove it in Cloudflare first`);
     }
-    await this.call('POST', `/zones/${zone.id}/dns_records`, body);
+    return { action: 'create' };
+  }
+
+  private async applyDns(zone: CloudflareZone, hostname: string, tunnelId: string, plan: DnsPlan): Promise<void> {
+    if (plan.action === 'none') return;
+    const body = { type: 'CNAME', name: hostname, content: `${tunnelId}${TUNNEL_TARGET_SUFFIX}`, proxied: true };
+    if (plan.action === 'repoint') await this.call('PUT', `/zones/${zone.id}/dns_records/${plan.id}`, body);
+    else await this.call('POST', `/zones/${zone.id}/dns_records`, body);
   }
 
   // ---- demo mode -----------------------------------------------------------
