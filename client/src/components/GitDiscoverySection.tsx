@@ -122,12 +122,14 @@ export const GitDiscoverySection: React.FC<GitDiscoverySectionProps> = ({ discov
           <div key={host.host} className="border-t border-cockpit-border/60">
             <div className="flex flex-wrap items-center gap-2 bg-cockpit-bg/40 px-5 py-2">
               <span className="font-mono text-[12.5px] font-semibold text-cockpit-text">{host.host}</span>
-              <span className={host.ok ? 'pill pill-good' : 'pill pill-bad'}>{host.ok ? 'scanned' : 'scan failed'}</span>
+              <span className={host.ok ? 'pill pill-good' : host.error === 'not scanned yet' ? 'pill pill-neutral' : 'pill pill-bad'}>
+                {host.ok ? 'scanned' : host.error === 'not scanned yet' ? 'scanning' : 'scan failed'}
+              </span>
               <span className="text-[11px] text-cockpit-muted">{rows.length} repositories</span>
             </div>
 
             {!host.ok && (
-              <p className="px-5 py-3 text-[12px] text-state-bad">
+              <p className={`px-5 py-3 text-[12px] ${host.error === 'not scanned yet' ? 'text-cockpit-muted' : 'text-state-bad'}`}>
                 {host.error === 'not scanned yet' ? 'Waiting for the first scan.' : `Could not scan this host: ${host.error}.`}
                 {host.error === 'SSH key not authorized' && ' Add the dashboard’s public key to this host’s authorized_keys.'}
                 {host.repos.length > 0 && ' Showing the last successful scan.'}
