@@ -22,7 +22,7 @@ const TIERS = [
   {
     name: 'Tier 2 · AI assistant',
     note: 'Gemini answers, never acts.',
-    commands: ['"jellyfin lancar ga bro?"', '"disk mana yg mau penuh?"', '/ask <prompt>'],
+    commands: ['"is jellyfin running ok?"', '"which disk is about to fill up?"', '/ask <prompt>'],
   },
   {
     name: 'Tier 3 · state actions',

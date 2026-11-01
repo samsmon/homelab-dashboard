@@ -57,7 +57,7 @@ const ManageGroupsModal: React.FC<{
     const trimmed = newGroupName.trim();
     if (!trimmed) return;
     if (groups.some((g) => g.toLowerCase() === trimmed.toLowerCase())) {
-      setError('Group dengan nama ini sudah ada');
+      setError('A group with this name already exists');
       return;
     }
     setError(null);
@@ -66,7 +66,7 @@ const ManageGroupsModal: React.FC<{
       await onGroupAdded(trimmed);
       setNewGroupName('');
     } catch (err: any) {
-      setError(err?.message || 'Gagal membuat group');
+      setError(err?.message || 'Failed to create group');
     } finally {
       setIsSubmitting(false);
     }
@@ -85,7 +85,7 @@ const ManageGroupsModal: React.FC<{
       return;
     }
     if (groups.some((g) => g.toLowerCase() === trimmed.toLowerCase() && g.toLowerCase() !== oldName.toLowerCase())) {
-      setError('Nama group sudah digunakan');
+      setError('Group name is already in use');
       return;
     }
     setError(null);
@@ -94,7 +94,7 @@ const ManageGroupsModal: React.FC<{
       await onGroupRenamed(oldName, trimmed);
       setEditingGroup(null);
     } catch (err: any) {
-      setError(err?.message || 'Gagal mengubah nama group');
+      setError(err?.message || 'Failed to rename group');
     } finally {
       setIsSubmitting(false);
     }
@@ -120,7 +120,7 @@ const ManageGroupsModal: React.FC<{
         <div className="panel-head">
           <div className="flex items-center gap-2">
             <Layers className="h-4 w-4 text-cockpit-accent" />
-            <h3 className="panel-title">Kelola Group Shortcut</h3>
+            <h3 className="panel-title">Manage Shortcut Groups</h3>
           </div>
           <button onClick={onClose} className="icon-btn" title="Close">
             <X className="h-4 w-4" />
@@ -129,7 +129,7 @@ const ManageGroupsModal: React.FC<{
         <div className="space-y-4 p-5">
           {/* Create Group Form */}
           <form onSubmit={handleCreate} className="space-y-2">
-            <label className="label block">Buat Group Baru</label>
+            <label className="label block">Create New Group</label>
             <div className="flex gap-2">
               <input
                 type="text"
@@ -149,7 +149,7 @@ const ManageGroupsModal: React.FC<{
                 className="btn-primary inline-flex items-center gap-1.5"
               >
                 <Plus className="h-3.5 w-3.5" />
-                <span>Tambah</span>
+                <span>Add</span>
               </button>
             </div>
             {error && <p className="text-[11.5px] text-state-bad">{error}</p>}
@@ -160,7 +160,7 @@ const ManageGroupsModal: React.FC<{
             <div className="rounded-xl border border-state-bad/30 bg-state-bad/10 p-3.5 space-y-2.5 animate-fadeIn">
               <div className="flex items-center justify-between">
                 <span className="text-[12px] font-bold text-state-bad">
-                  Hapus group "{confirmDeleteGroup.name}"?
+                  Delete group "{confirmDeleteGroup.name}"?
                 </span>
                 <button
                   type="button"
@@ -171,7 +171,7 @@ const ManageGroupsModal: React.FC<{
                 </button>
               </div>
               <p className="text-[11.5px] text-cockpit-muted leading-relaxed">
-                Group ini berisi <strong className="text-cockpit-text">{confirmDeleteGroup.count}</strong> shortcut. Silakan tentukan opsi penghapusan:
+                This group contains <strong className="text-cockpit-text">{confirmDeleteGroup.count}</strong> shortcuts. Choose a deletion option:
               </p>
               <div className="flex flex-col gap-1.5 pt-1">
                 <button
@@ -184,7 +184,7 @@ const ManageGroupsModal: React.FC<{
                   className="btn-ghost justify-start text-[11.5px] text-cockpit-text hover:bg-cockpit-panel"
                 >
                   <Trash2 className="h-3 w-3 text-cockpit-muted" />
-                  <span>Hapus group saja (simpan semua link ke Ungrouped)</span>
+                  <span>Delete group only (move all links to Ungrouped)</span>
                 </button>
                 <button
                   type="button"
@@ -196,7 +196,7 @@ const ManageGroupsModal: React.FC<{
                   className="btn-ghost justify-start text-[11.5px] text-state-bad hover:bg-state-bad/20"
                 >
                   <Trash2 className="h-3 w-3" />
-                  <span>Hapus group beserta {confirmDeleteGroup.count} shortcut di dalamnya</span>
+                  <span>Delete group and its {confirmDeleteGroup.count} shortcuts</span>
                 </button>
               </div>
             </div>
@@ -204,10 +204,10 @@ const ManageGroupsModal: React.FC<{
 
           {/* Available Groups List */}
           <div className="pt-2">
-            <label className="label mb-2 block">Daftar Group Tersedia ({groups.length})</label>
+            <label className="label mb-2 block">Available Groups ({groups.length})</label>
             {groups.length === 0 ? (
               <div className="rounded-lg border border-dashed border-cockpit-border p-4 text-center text-[12px] text-cockpit-muted">
-                Belum ada group yang dibuat. Buat group di atas untuk mengelompokkan shortcut kamu.
+                No groups yet. Create a group above to organize your shortcuts.
               </div>
             ) : (
               <div className="max-h-60 space-y-1.5 overflow-y-auto pr-1">
@@ -239,7 +239,7 @@ const ManageGroupsModal: React.FC<{
                             onClick={() => handleSaveRename(group)}
                             disabled={isSubmitting}
                             className="rounded p-1 text-state-good hover:bg-cockpit-panel"
-                            title="Simpan nama"
+                            title="Save name"
                           >
                             <Check className="h-3.5 w-3.5" />
                           </button>
@@ -247,7 +247,7 @@ const ManageGroupsModal: React.FC<{
                             type="button"
                             onClick={() => setEditingGroup(null)}
                             className="rounded p-1 text-cockpit-muted hover:bg-cockpit-panel"
-                            title="Batal"
+                            title="Cancel"
                           >
                             <X className="h-3.5 w-3.5" />
                           </button>
@@ -265,7 +265,7 @@ const ManageGroupsModal: React.FC<{
                               type="button"
                               onClick={() => handleStartRename(group)}
                               className="rounded p-1 text-cockpit-muted hover:bg-cockpit-panel hover:text-cockpit-text transition-colors"
-                              title="Ubah nama group"
+                              title="Rename group"
                             >
                               <Pencil className="h-3 w-3" />
                             </button>
@@ -273,7 +273,7 @@ const ManageGroupsModal: React.FC<{
                               type="button"
                               onClick={() => handleDeletePrompt(group)}
                               className="rounded p-1 text-cockpit-muted hover:bg-cockpit-panel hover:text-state-bad transition-colors"
-                              title="Hapus group"
+                              title="Delete group"
                             >
                               <Trash2 className="h-3 w-3" />
                             </button>
@@ -382,14 +382,14 @@ const BookmarkModal: React.FC<{
           </div>
           <div className="space-y-1.5">
             <div className="flex items-center justify-between">
-              <label className="label block">Pilih Group</label>
+              <label className="label block">Select Group</label>
               <button
                 type="button"
                 onClick={onOpenManageGroups}
                 className="text-[11px] font-semibold text-cockpit-accent hover:underline inline-flex items-center gap-1"
               >
                 <FolderPlus className="h-3 w-3" />
-                <span>+ Kelola Group</span>
+                <span>+ Manage Groups</span>
               </button>
             </div>
             <select
@@ -398,7 +398,7 @@ const BookmarkModal: React.FC<{
               disabled={isSubmitting}
               className="field w-full cursor-pointer"
             >
-              <option value="">Tanpa Group (Default / Ungrouped)</option>
+              <option value="">No Group (Default / Ungrouped)</option>
               {groups.map((g) => (
                 <option key={g} value={g}>
                   {g}
@@ -655,8 +655,8 @@ export const BookmarksSection: React.FC = () => {
           <h2 className="panel-title">Shortcuts</h2>
           <p className="panel-sub">
             {isReordering
-              ? 'Drag & drop shortcut untuk mengatur urutan, lalu klik Save'
-              : 'Drag & drop shortcut langsung ke group tujuan, atau minimize group yang diinginkan'}
+              ? 'Drag & drop shortcuts to set the order, then click Save'
+              : 'Drag & drop shortcuts straight into the target group, or minimize the groups you want'}
           </p>
         </div>
         <div className="flex items-center gap-2">
@@ -677,10 +677,10 @@ export const BookmarksSection: React.FC = () => {
             <button
               onClick={() => setIsManagingGroups(true)}
               className="btn-ghost inline-flex items-center gap-1.5"
-              title="Kelola group shortcut (bikin, edit, ubah nama, hapus)"
+              title="Manage shortcut groups (create, edit, rename, delete)"
             >
               <Layers className="h-3.5 w-3.5 text-cockpit-accent" />
-              <span className="hidden sm:inline">Kelola Group</span>
+              <span className="hidden sm:inline">Manage Groups</span>
             </button>
           )}
 
@@ -729,7 +729,7 @@ export const BookmarksSection: React.FC = () => {
       {bookmarks.length === 0 && allGroups.length === 0 ? (
         <div className="px-5 py-8 text-center flex flex-col items-center justify-center gap-3">
           <p className="text-[13px] text-cockpit-muted">
-            Belum ada shortcut tersimpan — tambahkan link yang sering kamu gunakan.
+            No shortcuts saved yet. Add the links you use often.
           </p>
           <div className="flex items-center gap-2">
             <button
@@ -737,14 +737,14 @@ export const BookmarksSection: React.FC = () => {
               className="btn-primary flex items-center gap-1.5"
             >
               <Plus className="h-3.5 w-3.5" />
-              <span>Tambah Shortcut Pertama</span>
+              <span>Add First Shortcut</span>
             </button>
             <button
               onClick={() => setIsManagingGroups(true)}
               className="btn-ghost flex items-center gap-1.5"
             >
               <Layers className="h-3.5 w-3.5" />
-              <span>Buat Group</span>
+              <span>Create Group</span>
             </button>
           </div>
         </div>
@@ -765,7 +765,7 @@ export const BookmarksSection: React.FC = () => {
                     ? 'border-cockpit-accent bg-cockpit-accent/15 opacity-40 scale-95 shadow-inner'
                     : 'border-cockpit-accent/40 bg-cockpit-accent/5 hover:border-cockpit-accent hover:bg-cockpit-panel'
                 }`}
-                title="Drag untuk memindahkan urutan"
+                title="Drag to reorder"
               >
                 <div className="absolute left-1.5 top-1.5 text-cockpit-accent/70">
                   <GripVertical className="h-3.5 w-3.5" />
@@ -825,7 +825,7 @@ export const BookmarksSection: React.FC = () => {
                 <div
                   onClick={() => toggleGroupCollapse(groupName)}
                   className="flex cursor-pointer items-center justify-between px-3.5 py-2.5 transition-colors hover:bg-cockpit-panel/50 rounded-t-xl select-none"
-                  title="Klik untuk minimize / expand group"
+                  title="Click to minimize / expand group"
                 >
                   <div className="flex items-center gap-2 min-w-0">
                     <button
@@ -849,11 +849,11 @@ export const BookmarksSection: React.FC = () => {
                   <div className="flex items-center gap-2 text-[11px] text-cockpit-muted">
                     {isHoveredDrop && (
                       <span className="font-semibold text-cockpit-accent animate-pulse">
-                        Lepaskan untuk pindah ke group ini
+                        Release to move to this group
                       </span>
                     )}
                     <span className="text-[11px] opacity-70 hidden sm:inline">
-                      {isCollapsed ? 'Minimized (klik untuk buka)' : 'Drag shortcut ke sini'}
+                      {isCollapsed ? 'Minimized (click to open)' : 'Drag shortcut here'}
                     </span>
                     {/* Quick action buttons in group header */}
                     <div
@@ -864,7 +864,7 @@ export const BookmarksSection: React.FC = () => {
                         type="button"
                         onClick={() => handleOpenAdd(groupName === UNGROUPED ? undefined : groupName)}
                         className="icon-btn h-6 w-6 text-cockpit-muted hover:text-cockpit-text"
-                        title={`Tambah shortcut ke group ${groupName}`}
+                        title={`Add shortcut to group ${groupName}`}
                       >
                         <Plus className="h-3 w-3" />
                       </button>
@@ -873,7 +873,7 @@ export const BookmarksSection: React.FC = () => {
                           type="button"
                           onClick={() => setIsManagingGroups(true)}
                           className="icon-btn h-6 w-6 text-cockpit-muted hover:text-cockpit-text"
-                          title="Kelola group ini di modal"
+                          title="Manage this group in the modal"
                         >
                           <FolderCog className="h-3 w-3" />
                         </button>
@@ -895,8 +895,8 @@ export const BookmarksSection: React.FC = () => {
                       >
                         <p className="text-[12px] font-medium">
                           {isHoveredDrop
-                            ? 'Lepaskan untuk memasukkan shortcut ke group ini'
-                            : 'Group ini masih kosong — drag shortcut ke sini atau klik + untuk menambah shortcut'}
+                            ? 'Release to add the shortcut to this group'
+                            : 'This group is empty. Drag a shortcut here or click + to add one'}
                         </p>
                       </div>
                     ) : (
@@ -921,7 +921,7 @@ export const BookmarksSection: React.FC = () => {
                               className={`shortcut-card group relative flex flex-col items-center justify-center gap-2 rounded-lg border border-cockpit-border bg-cockpit-bg p-3.5 text-center transition-all hover:border-cockpit-accent/50 hover:bg-cockpit-panel/60 active:scale-[0.98] cursor-grab active:cursor-grabbing select-none ${
                                 isBeingDragged ? 'opacity-30 border-dashed border-cockpit-accent scale-95' : ''
                               }`}
-                              title="Klik untuk buka link, atau drag ke group lain"
+                              title="Click to open the link, or drag to another group"
                             >
                               <a
                                 href={b.url}

@@ -187,7 +187,7 @@ All user interface modifications must strictly preserve the modern glassmorphism
 - **Wait for explicit permission to code:** Do NOT execute code changes (via `run_command`, `edit_file`, etc.) until the user has explicitly approved your proposal. This is mandatory to prevent merge conflicts with other agents concurrently working on the project.
 - **Log Start of Task (Locking mechanism):** The VERY FIRST action upon receiving a task prompt is to write an entry marked `[IN PROGRESS]` into `AGENT_LOG.md`. This signals to concurrent agents that the file/feature is being worked on.
 - **Log Completion of Task:** Once the task is completed and pushed, update that same `AGENT_LOG.md` entry from `[IN PROGRESS]` to `[COMPLETED]` with a summary of the finalized changes. Always read `AGENT_LOG.md` first to check if another agent has locked a feature.
-- **Update Announcements on Commit:** Setiap kali melakukan commit pembaruan fitur atau UI, pastikan juga menambahkan entry pesan pembaruan (message update) ke dalam file `announcements.json`. Hal ini penting agar `AppUpdateBanner` di halaman Overview dapat langsung menampilkan ringkasan release notes.
+- **Update Announcements on Commit:** Whenever you commit a feature or UI update, also add an update message entry to `announcements.json`. This lets `AppUpdateBanner` on the Overview page show the release notes summary right away.
 
 
 ## Out-of-Process Redeployment Architecture (`homelab-redeploy.sh`)
@@ -212,7 +212,7 @@ When redeploying `homelab-dashboard` / `homelab-cockpit` or other tracked git pr
   - The host runner automatically cleans stale `.git/index.lock`, safely stashes local changes, runs `git fetch origin <branch>` and `git reset --hard origin/<branch>`, ensures Docker network `homelab-net` exists, executes `docker compose up -d --build --force-recreate`, and streams logs to `data/redeploy.log` and status to `data/redeploy-status.json`.
 - **Seamless Downtime & Frontend Reconnection:**
   - `AppUpdateBanner.tsx` and `GitPullInline.tsx` tail `data/redeploy.log` in real time.
-  - When the container stops and restarts during recreate ("service sempet down"), the frontend catches consecutive connection drops, shows the transitional "Service Restarting" status, automatically polls `/api/health`, and reloads the page via `window.location.reload()` once the new container is healthy ("trus naik lagi").
+  - When the container stops and restarts during recreate ("service briefly down"), the frontend catches consecutive connection drops, shows the transitional "Service Restarting" status, automatically polls `/api/health`, and reloads the page via `window.location.reload()` once the new container is healthy ("trus naik lagi").
 - **Guideline for AI Agents:**
   - If a user requests to pull and redeploy via terminal or asks for deployment assistance, execute `/root/homelab-redeploy.sh` (or `npm run redeploy`).
   - Never run `docker compose up -d --build` synchronously inside a process that will kill itself without detaching or delegating to `homelab-redeploy.sh`.

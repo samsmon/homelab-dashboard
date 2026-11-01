@@ -163,7 +163,7 @@ bash /root/homelab-redeploy.sh homelab-idp
 ```
 
 ### Background Watcher Daemon (`--watch`)
-To allow Web UI buttons (**Update Sekarang** and **Pull & Redeploy**) to trigger instantaneous out-of-process rebuilds on the host:
+To allow Web UI buttons (**Update Now** and **Pull & Redeploy**) to trigger instantaneous out-of-process rebuilds on the host:
 
 ```bash
 # Run watcher as a background daemon:

@@ -138,15 +138,15 @@
     "version": "1.2.0",
     "title": "Full Container Management, System Logs Page & UI Overhaul",
     "date": "2026-09-15",
-    "description": "Perombakan UI (sidebar sticky, header dirapikan, animasi interaksi) plus fitur baru: manajemen penuh container (start/stop/restart, default card view, filter pinned, sort), halaman Logs untuk audit trail lengkap, timestamp pull & redeploy di Git Projects, grouping shortcut, dan detail tambahan di AI Agents Monitor.",
+    "description": "UI overhaul (sticky sidebar, tidier header, interaction animations) plus new features: full container management (start/stop/restart, default card view, pinned filter, sort), a Logs page with a complete audit trail, pull & redeploy timestamps in Git Projects, shortcut grouping, and extra detail in the AI Agents Monitor.",
     "highlights": [
-      "Sidebar sekarang benar-benar sticky mengikuti viewport saat scroll, tidak lagi ikut ter-scroll bersama konten.",
-      "Header dirapikan: tombol Settings/Fullscreen/Refresh/Sign out digabung ke satu menu 'More' agar tidak berantakan.",
-      "Container Fleet: default tampilan Card, filter Pinned/All, dan kontrol penuh start/stop/restart per container.",
-      "Halaman Logs baru: audit trail lengkap (auth, pin, container, git, backup, config, error) dengan filter kategori/level dan pencarian.",
-      "Git Projects menampilkan jam & tanggal pull & redeploy terakhir.",
-      "Shortcuts (Bookmarks) kini bisa dikelompokkan berdasarkan grup buatan sendiri.",
-      "AI Agents Monitor menampilkan turns hari ini, waktu aktif terakhir, dan disclaimer transparansi bahwa angka 5-jam/mingguan adalah estimasi lokal, bukan limit resmi dari akun."
+      "The sidebar is now truly sticky to the viewport while scrolling, instead of scrolling along with the content.",
+      "Header tidied up: the Settings/Fullscreen/Refresh/Sign out buttons are merged into a single 'More' menu to reduce clutter.",
+      "Container Fleet: Card view by default, Pinned/All filter, and full start/stop/restart control per container.",
+      "New Logs page: a complete audit trail (auth, pin, container, git, backup, config, error) with category/level filters and search.",
+      "Git Projects shows the time and date of the last pull & redeploy.",
+      "Shortcuts (Bookmarks) can now be grouped into custom groups.",
+      "AI Agents Monitor shows turns today, last active time, and a transparency disclaimer that the 5-hour/weekly figures are local estimates, not official account limits."
     ]
   },
   {
@@ -154,11 +154,11 @@
     "version": "1.1.13",
     "title": "Standalone Out-of-Process Redeployer & Seamless Service Reconnect",
     "date": "2026-09-14",
-    "description": "Menghadirkan skrip eksekusi mandiri di host (scripts/homelab-redeploy.sh & /root/homelab-redeploy.sh) dan watcher daemon untuk proses redeploy yang kebal dari terminasi container, serta auto-reconnect cerdas saat service sempat down.",
+    "description": "Adds a standalone execution script on the host (scripts/homelab-redeploy.sh & /root/homelab-redeploy.sh) and a watcher daemon for a redeploy process that survives container termination, plus smart auto-reconnect when the service briefly goes down.",
     "highlights": [
-      "Standalone Host Redeployer (scripts/homelab-redeploy.sh): Skrip mandiri di host (/root/homelab-redeploy.sh) yang melakukan auto-stash, fetch, reset, auto-heal network Docker 'homelab-net', dan docker compose up -d --build --force-recreate tanpa terputus ketika container cockpit direstart.",
-      "Watcher / Daemon Mode (--watch): Daemon pemantau trigger file yang siap dijalankan di host atau sebagai systemd service (scripts/homelab-redeploy.service) untuk menangkap perintah redeploy dari web dashboard secara real-time.",
-      "Seamless Downtime & Auto-Reconnect: Ketika container sedang direcreate dan koneksi terputus sesaat ('service sempet down'), UI dashboard tidak menampilkan fatal error melainkan status transisi 'Service Restarting', memantau /api/health secara berkala, dan otomatis reload saat container baru aktif ('trus naik lagi')."
+      "Standalone Host Redeployer (scripts/homelab-redeploy.sh): A standalone script on the host (/root/homelab-redeploy.sh) that performs auto-stash, fetch, reset, auto-heal of the 'homelab-net' Docker network, and docker compose up -d --build --force-recreate without being cut off when the cockpit container restarts.",
+      "Watcher / Daemon Mode (--watch): A trigger-file monitoring daemon that can run on the host or as a systemd service (scripts/homelab-redeploy.service) to pick up redeploy commands from the web dashboard in real time.",
+      "Seamless Downtime & Auto-Reconnect: When the container is being recreated and the connection drops briefly ('service briefly down'), the dashboard UI shows a 'Service Restarting' transition status instead of a fatal error, polls /api/health periodically, and reloads automatically once the new container is up ('back up again')."
     ]
   },
   {
@@ -166,11 +166,11 @@
     "version": "1.1.12",
     "title": "Removed Beta UI & Instant Primary Node Customization",
     "date": "2026-09-14",
-    "description": "Menghapus rute dan layout Beta UI sepenuhnya untuk menyederhanakan antarmuka kembali ke Classic Glassmorphism, serta memperbaiki bug persistensi dan siaran nama custom Primary Node.",
+    "description": "Removes the Beta UI routes and layout entirely to simplify the interface back to Classic Glassmorphism, and fixes the persistence and broadcast bug for the custom Primary Node name.",
     "highlights": [
-      "Cleaned up Beta UI: Menghapus layout, header, sidebar, dan rute /beta sepenuhnya sehingga dashboard kembali fokus pada antarmuka utama yang stabil.",
-      "Instant Primary Node Name: Memperbaiki siaran WebSocket dan penulisan setting sehingga nama custom Primary Node langsung teraplikasikan seketika di seluruh tampilan.",
-      "Streamlined User Settings: Memfokuskan modal pengaturan pada kustomisasi nama node, tema warna (Dark/Light), dan keamanan akun owner."
+      "Cleaned up Beta UI: Removed the /beta layout, header, sidebar, and routes entirely so the dashboard stays focused on the stable main interface.",
+      "Instant Primary Node Name: Fixed the WebSocket broadcast and settings write so a custom Primary Node name applies instantly across all views.",
+      "Streamlined User Settings: Focused the settings modal on node name customization, color theme (Dark/Light), and owner account security."
     ]
   },
   {
@@ -178,12 +178,12 @@
     "version": "1.1.11",
     "title": "User Settings Hub, Node Renaming & Git Project Failure Recovery",
     "date": "2026-09-14",
-    "description": "Menghadirkan panel User Settings terpadu untuk kustomisasi tema dan UI Style (Classic Glassmorphism vs Neo-Brutalism), kustomisasi nama Primary Node, ganti password login owner, serta tombol pemulihan Repull & Redeploy jika status Git project failed.",
+    "description": "Adds a unified User Settings panel for theme and UI Style customization (Classic Glassmorphism vs Neo-Brutalism), Primary Node renaming, owner login password change, and a Repull & Redeploy recovery button when a Git project status is failed.",
     "highlights": [
-      "User Settings Hub: Modal pengaturan komprehensif untuk memilih UI Style (Classic Glassmorphism vs Neo-Brutalism), Color Theme (Dark/Light), dan preferensi tampilan.",
-      "Dynamic Primary Node Name: Fleksibilitas mengganti label Primary Node (PVE / host) langsung dari dashboard dan disimpan di server dengan siaran real-time via WebSocket.",
-      "Password Management: Fitur ubah password akun owner / one-time login dengan verifikasi aman scrypt dan konfirmasi password baru.",
-      "Git Project Failure Recovery: Menyediakan tombol Repull & Redeploy (Force Sync) dan Retry Check saat terjadi kegagalan check upstream atau status failed, serta auto-clean file .git/index.lock yang tertinggal."
+      "User Settings Hub: A comprehensive settings modal for choosing UI Style (Classic Glassmorphism vs Neo-Brutalism), Color Theme (Dark/Light), and display preferences.",
+      "Dynamic Primary Node Name: Change the Primary Node label (PVE / host) directly from the dashboard, stored on the server and broadcast in real time via WebSocket.",
+      "Password Management: Change the owner account / one-time login password with secure scrypt verification and new password confirmation.",
+      "Git Project Failure Recovery: Provides Repull & Redeploy (Force Sync) and Retry Check buttons when an upstream check fails or the status is failed, plus automatic cleanup of a leftover .git/index.lock file."
     ]
   },
   {
@@ -191,12 +191,12 @@
     "version": "1.1.10",
     "title": "Full Feature Parity & Shortcuts System for Beta Brutalist UI",
     "date": "2026-09-14",
-    "description": "Menyempurnakan Beta Brutalist UI dengan menghadirkan seluruh fitur yang sebelumnya hanya ada di Legacy UI: Command Palette internal routing, bookmark shortcuts dengan brutalist card styling, panel notifikasi, collapsible sidebar, sensor thermal CPU, dan quick action deck.",
+    "description": "Completes the Beta Brutalist UI with every feature previously found only in the Legacy UI: Command Palette internal routing, bookmark shortcuts with brutalist card styling, a notification panel, collapsible sidebar, CPU thermal sensors, and a quick action deck.",
     "highlights": [
-      "Integrated Shortcuts & Bookmarks: Menghadirkan kembali Personal Web Shortcuts di HomePageBeta dengan styling brutalist kontras tinggi, empty state action, dan visual card hover effect.",
-      "Command Palette Preservation: Navigasi via Ctrl+K di dalam Beta UI kini secara otomatis mempertahankan rute /beta/* sehingga pengguna tidak terlempar kembali ke Legacy UI.",
-      "Collapsible Beta Sidebar: Menambahkan tombol toggle expand/collapse pada BetaSidebar dengan persistensi localStorage untuk area kerja yang lebih luas.",
-      "Complete Vitals & Telemetry Parity: Menambahkan CPU load %, RAM used/total, sensor suhu Package Temp / Thermal, dan Quick Action launchpad ke dalam Beta Overview."
+      "Integrated Shortcuts & Bookmarks: Brings back Personal Web Shortcuts in HomePageBeta with high-contrast brutalist styling, an empty state action, and a card hover effect.",
+      "Command Palette Preservation: Ctrl+K navigation inside the Beta UI now automatically keeps the /beta/* routes so users are not thrown back to the Legacy UI.",
+      "Collapsible Beta Sidebar: Adds an expand/collapse toggle to BetaSidebar with localStorage persistence for a larger workspace.",
+      "Complete Vitals & Telemetry Parity: Adds CPU load %, RAM used/total, Package Temp / Thermal temperature sensors, and a Quick Action launchpad to the Beta Overview."
     ]
   },
   {
@@ -204,10 +204,10 @@
     "version": "1.1.9",
     "title": "Force Pull & Auto-Stash Resilient Git Project Redeploy",
     "date": "2026-09-14",
-    "description": "Menghilangkan kegagalan pull & redeploy akibat konflik perubahan lokal pada file repository (misal docker-compose.yml), dengan menerapkan force pull bersih via git fetch & reset --hard serta auto-stash pengaman data.",
+    "description": "Eliminates pull & redeploy failures caused by local change conflicts in repository files (e.g. docker-compose.yml), using a clean force pull via git fetch & reset --hard plus a data-protecting auto-stash.",
     "highlights": [
-      "Force Pull Pipeline: Mengganti git pull standar dengan git fetch + git reset --hard origin/<branch> untuk memastikan kontainer selalu ter-redeploy tanpa error Aborting.",
-      "Auto-Stash Data Protection: Perubahan lokal pada file tracked tersimpan otomatis ke git stash sebelum reset, sementara file untracked (.env, direktori database, volume data) tetap aman dan tidak tersentuh."
+      "Force Pull Pipeline: Replaces the standard git pull with git fetch + git reset --hard origin/<branch> to ensure containers always redeploy without the Aborting error.",
+      "Auto-Stash Data Protection: Local changes to tracked files are automatically saved to a git stash before the reset, while untracked files (.env, database directories, data volumes) stay safe and untouched."
     ]
   },
   {
@@ -215,10 +215,10 @@
     "version": "1.1.8",
     "title": "Fix Window Auto-Scroll Lock during App Update",
     "date": "2026-09-14",
-    "description": "Memperbaiki bug di mana browser window secara paksa ditarik ke bawah saat proses \"Sedang memperbarui dashboard...\", sehingga pengguna kini bebas scroll ke atas dan membaca log tanpa gangguan.",
+    "description": "Fixes a bug where the browser window was forcibly pulled down while \"Updating dashboard...\" was running, so users can now scroll up freely and read the log without interruption.",
     "highlights": [
-      "Container-Scoped Auto-Scroll: Mengganti pemanggilan scrollIntoView() global dengan scrollTo({ top: scrollHeight }) langsung pada kontainer terminal AppUpdateBanner.",
-      "Scroll Freedom: Mencegah pembajakan scroll window browser saat log update diperbarui tiap detik, memungkinkan pengguna melihat bagian atas modal maupun dashboard dengan leluasa."
+      "Container-Scoped Auto-Scroll: Replaces the global scrollIntoView() call with scrollTo({ top: scrollHeight }) directly on the AppUpdateBanner terminal container.",
+      "Scroll Freedom: Prevents hijacking of the browser window scroll while the update log refreshes every second, letting users freely view the top of the modal and the dashboard."
     ]
   },
   {
@@ -226,14 +226,14 @@
     "version": "1.1.7",
     "title": "Beta UI Brutalist Perfection & Dedicated Storage SMART Watchdog",
     "date": "2026-09-14",
-    "description": "Penyempurnaan visual Brutalist menyeluruh pada Beta UI, optimasi responsivitas mobile phone, serta pemisahan Storage & DAS Watchdog menjadi section mandiri lengkap dengan telemetri SMART dan I/O real-time.",
+    "description": "Thorough Brutalist visual polish for the Beta UI, mobile phone responsiveness optimization, and splitting Storage & DAS Watchdog into a standalone section with SMART and real-time I/O telemetry.",
     "highlights": [
-      "Dedicated Storage & DAS Watchdog: Memisahkan panel penyimpanan dari kolom sempit menjadi section penuh mandiri di InfraPage dengan detail LVM-thin allocations dan container workloads.",
-      "Real-Time SMART & I/O Telemetry: Menampilkan status SMART (PASSED/WARNING), throughput baca/tulis live (MB/s), active time disk %, serta latensi respons secara langsung.",
-      "Enhanced Canary Watchdog: Visualisasi status deteksi file .mounted live dengan pulse indicator untuk mencegah risiko overflow root filesystem saat enclosure eksternal terputus.",
-      "Overview Real-time Storage Vital: Menambahkan blok ringkasan Storage & DAS Watchdog ke dalam grid Core Vitals HomePage Beta.",
-      "Universal Brutalist Styling: Reset sudut rounded-none, penonaktifan backdrop blur, kustomisasi brutalist scrollbars, dan animasi snappy 0.08s di seluruh antarmuka Beta.",
-      "Mobile UX Refinement: Navigasi horizontal bar yang ergonomis dan penataan header actions rapi tanpa horizontal overflow pada layar HP."
+      "Dedicated Storage & DAS Watchdog: Moves the storage panel out of a narrow column into a full standalone section in InfraPage, with LVM-thin allocation and container workload details.",
+      "Real-Time SMART & I/O Telemetry: Shows SMART status (PASSED/WARNING), live read/write throughput (MB/s), disk active time %, and response latency directly.",
+      "Enhanced Canary Watchdog: Live visualization of .mounted file detection status with a pulse indicator to prevent root filesystem overflow when the external enclosure disconnects.",
+      "Overview Real-time Storage Vital: Adds a Storage & DAS Watchdog summary block to the Core Vitals grid on the Beta HomePage.",
+      "Universal Brutalist Styling: Rounded-none corner reset, backdrop blur disabled, custom brutalist scrollbars, and snappy 0.08s animations across the whole Beta interface.",
+      "Mobile UX Refinement: Ergonomic horizontal navigation bar and tidy header actions without horizontal overflow on phone screens."
     ]
   },
   {
@@ -241,10 +241,10 @@
     "version": "1.1.6",
     "title": "Beta UI Overview Feature Parity & Mobile Support",
     "date": "2026-09-14",
-    "description": "Menyempurnakan dashboard utama Beta UI agar memiliki fitur yang setara dengan versi Legacy dan menyesuaikan dukungan tampilan di layar HP.",
+    "description": "Brings the Beta UI main dashboard to feature parity with the Legacy version and adapts the layout for phone screens.",
     "highlights": [
-      "Feature Parity: Memasang App Update Banner dan panel Bookmarks Shortcuts ke dalam halaman HomePage Beta (Brutalist UI)",
-      "Mobile CSS Grid: Memperbaiki styling class column untuk layout HP (misalnya menggunakan grid-cols-1 vs grid-cols-2) sehingga grid Brutalist tetap rapi dan tidak tumpang tindih pada layar sempit"
+      "Feature Parity: Adds the App Update Banner and the Bookmarks Shortcuts panel to the Beta HomePage (Brutalist UI)",
+      "Mobile CSS Grid: Fixes column class styling for phone layouts (e.g. using grid-cols-1 vs grid-cols-2) so the Brutalist grid stays tidy and does not overlap on narrow screens"
     ]
   },
   {
@@ -252,10 +252,10 @@
     "version": "1.1.5",
     "title": "Smart Auto-Scroll Logs & Force Update Button",
     "date": "2026-09-14",
-    "description": "Perbaikan UX pada terminal live update dan penambahan tombol paksa untuk App Updater, menyelesaikan keluhan scroll window yang terkunci otomatis.",
+    "description": "UX fixes for the live update terminal and a new force button for the App Updater, resolving complaints about the window scroll being locked automatically.",
     "highlights": [
-      "Smart Auto-Scroll: Jendela log pada saat proses pull & redeploy Git Project maupun App Updater tidak lagi me-lock layar secara paksa ke baris terbaru jika pengguna sengaja melakukan scroll ke atas.",
-      "Force App Update: Menambahkan tombol 'Pull & Redeploy' di status bar Overview (saat aplikasi dicek sudah berstatus Up to date) sehingga pengguna bisa memaksa eksekusi ulang siklus pembaruan Dashboard secara mandiri."
+      "Smart Auto-Scroll: The log window during Git Project pull & redeploy and App Updater runs no longer forcibly locks the screen to the newest line if the user has deliberately scrolled up.",
+      "Force App Update: Adds a 'Pull & Redeploy' button in the Overview status bar (when the app is checked and already Up to date) so users can force the Dashboard update cycle to run again on their own."
     ]
   },
   {
@@ -263,12 +263,12 @@
     "version": "1.1.4",
     "title": "Global Brutalist Beta UI Architecture & Layout Engine",
     "date": "2026-09-14",
-    "description": "Perombakan arsitektur frontend dengan menambahkan layout mandiri bergaya Brutalist (Beta UI). Seluruh komponen dan rute dalam web kini memiliki dua mode tampilan secara global yang dapat dialihkan instan melalui tombol Header.",
+    "description": "Frontend architecture overhaul that adds a standalone Brutalist-style layout (Beta UI). All components and routes on the web now have two display modes globally, switchable instantly from a Header button.",
     "highlights": [
-      "Brutalist UI Mode: Desain antarmuka konstruktivis murni dengan struktur border tebal, tanpa blur, dan stark grid base",
-      "Global Layout Engine: Pemisahan Legacy UI dan Beta UI dengan CSS environment blocker tanpa menduplikasi komponen halaman",
-      "Header Seamless Toggle: Tombol sentral untuk beralih antara Classic UI dan Beta UI dengan navigasi rute seketika menuju `/beta/`",
-      "Pembaruan Dokumentasi: Pembersihan screenshot lawas di README menyisakan overview interface dashboard utama"
+      "Brutalist UI Mode: A pure constructivist interface design with thick borders, no blur, and a stark grid base",
+      "Global Layout Engine: Separates Legacy UI and Beta UI with a CSS environment blocker without duplicating page components",
+      "Header Seamless Toggle: A central button to switch between Classic UI and Beta UI with instant route navigation to `/beta/`",
+      "Documentation Update: Cleaned out old screenshots in the README, leaving the main dashboard interface overview"
     ]
   },
   {
@@ -276,12 +276,12 @@
     "version": "1.1.3",
     "title": "Real-Time Update Engine, Fleet Card Sorting & T3 Volume Wire",
     "date": "2026-09-14",
-    "description": "Pembaruan mesin self-updater dengan pemantauan commit real-time di latar belakang, auto-recovery rebase yang tangguh jika terjadi divergensi git lokal, fitur sorting fleksibel di mode kartu armada (Fleet Card View), dan integrasi volume persistensi T3 Code.",
+    "description": "Self-updater engine upgrade with real-time background commit monitoring, robust auto-recovery rebase when local git diverges, flexible sorting in Fleet Card View, and T3 Code persistence volume integration.",
     "highlights": [
-      "Real-Time Updater: Deteksi update commit GitHub secara otomatis di latar belakang tiap 30-60 detik tanpa perlu reload halaman",
-      "Auto-Fetch & Resilient Rebase: Eksekusi git fetch otomatis saat cek update dan pemulihan cerdas jika terjadi divergensi cabang lokal",
-      "Fleet Cards Sort Controls: Kemampuan mengurutkan kontainer berdasarkan Nama, CPU, RAM, atau Network dengan toggle ASC/DESC di mode kartu",
-      "Integrasi Volume T3 Code: Mounting volume baca-saja data T3 Code pada docker-compose untuk telemetri AI Agent tanpa hambatan"
+      "Real-Time Updater: Automatic detection of GitHub commit updates in the background every 30-60 seconds without reloading the page",
+      "Auto-Fetch & Resilient Rebase: Automatic git fetch when checking for updates and smart recovery if the local branch diverges",
+      "Fleet Cards Sort Controls: Sort containers by Name, CPU, RAM, or Network with an ASC/DESC toggle in card mode",
+      "T3 Code Volume Integration: Mounts the T3 Code data volume read-only in docker-compose for seamless AI Agent telemetry"
     ]
   },
   {
@@ -289,28 +289,28 @@
     "version": "1.1.2",
     "title": "AI Agents Monitor, Glassmorphism UI & Fleet Cards View",
     "date": "2026-09-13",
-    "description": "Menghadirkan fitur pemantauan penggunaan AI Agent multi-tenant (Claude Pro & Gemini) langsung dari telemetri T3 Code, tampilan antarmuka Glassmorphism modern dengan transisi halus, mode tampilan kartu (Cards vs Table) pada armada kontainer, dan perbaikan kestabilan updater.",
+    "description": "Adds multi-tenant AI Agent usage monitoring (Claude Pro & Gemini) straight from T3 Code telemetry, a modern Glassmorphism interface with smooth transitions, a card display mode (Cards vs Table) for the container fleet, and updater stability fixes.",
     "highlights": [
-      "AI Agents Monitor: Pantau penggunaan 4 AI agent (Claude Pro, Gemini Default, Auth, Marmut) dengan limit sliding 5 jam dan hitung mundur cooldown detik-demi-detik",
-      "Riwayat Mingguan & Stream Interaksi: Grafik batang 7 hari per agent dan log eksekusi model secara real-time",
-      "Desain Visual Glassmorphism: Desain panel transparan modern dengan backdrop blur, border glow, dan animasi fade-in-up",
-      "Fleet Cards vs Table View: Tombol toggle tata letak kartu grid atau tabel responsif pada Container Fleet",
-      "Stabilitas Self-Updater: Otomasi monorepo npm workspaces dan perbaikan eksekusi build di container produksi"
+      "AI Agents Monitor: Track usage of 4 AI agents (Claude Pro, Gemini Default, Auth, Marmut) with a 5-hour sliding limit and a second-by-second cooldown countdown",
+      "Weekly History & Interaction Stream: A 7-day bar chart per agent and a real-time model execution log",
+      "Glassmorphism Visual Design: Modern transparent panels with backdrop blur, border glow, and fade-in-up animations",
+      "Fleet Cards vs Table View: Toggle between a grid card layout and a responsive table in Container Fleet",
+      "Self-Updater Stability: Monorepo npm workspaces automation and fixes for build execution in the production container"
     ]
   },
   {
     "id": "2026-09-13-update-system",
     "version": "1.1.0",
-    "title": "Fitur Update Otomatis, Drag & Drop Shortcuts & Header Cleanup",
+    "title": "Automatic Update Feature, Drag & Drop Shortcuts & Header Cleanup",
     "date": "2026-09-13",
-    "description": "Dashboard kini dapat diupdate langsung dari Overview dengan sekali klik tanpa perlu manual pull & redeploy. Menambahkan sistem pengumuman update otomatis dari commit/announcements, reorder shortcuts dengan drag & drop, card shortcut dapat diklik seluruhnya, dan pembersihan info hardware di header.",
+    "description": "The dashboard can now be updated straight from Overview with one click, no manual pull & redeploy needed. Adds an automatic update announcement system from commits/announcements, shortcut reordering with drag & drop, fully clickable shortcut cards, and cleanup of hardware info in the header.",
     "highlights": [
-      "Fitur One-Click Update homelab-dashboard dari Overview tanpa perlu manual pull & redeploy",
-      "Announcement sistem update otomatis dengan ringkasan pembaruan",
-      "Shortcut langsung ke repository GitHub",
-      "Penyusunan urutan shortcuts dengan fitur Drag and Drop lalu klik Save",
-      "Seluruh kotak shortcut dapat diklik untuk membuka tautan di tab baru",
-      "Pembersihan strip info hardware PVE, Docker host, Tailnet, Containers, dan CPU di Header"
+      "One-Click Update of homelab-dashboard from Overview without manual pull & redeploy",
+      "Automatic update announcement system with an update summary",
+      "Shortcut straight to the GitHub repository",
+      "Reorder shortcuts with Drag and Drop, then click Save",
+      "The whole shortcut box is clickable to open the link in a new tab",
+      "Cleanup of the PVE, Docker host, Tailnet, Containers, and CPU hardware info strip in the Header"
     ]
   }
 ]
