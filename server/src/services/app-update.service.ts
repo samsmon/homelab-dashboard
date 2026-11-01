@@ -391,14 +391,14 @@ export class AppUpdateService {
               .slice(1)
               .map((l) => l.trim())
               .filter(Boolean)
-              .join(' ') || 'Pembaruan baru telah dipublikasikan ke repository.';
+              .join(' ') || 'A new update has been published to the repository.';
           const highlights = commits
             .slice(0, Math.min(this.behindBy || 3, 5))
             .map((c) => c.commit.message.split('\n')[0].trim());
 
           this.announcement = {
             id: this.latestSha,
-            title: title || 'Pembaruan Tersedia',
+            title: title || 'Update Available',
             date: latest.commit.committer?.date || new Date().toISOString(),
             description: desc,
             highlights: highlights.length > 0 ? highlights : [title],
@@ -416,13 +416,13 @@ export class AppUpdateService {
 
   public startUpdate(): { started: boolean; message?: string } {
     if (this.updateState.status === 'updating') {
-      return { started: false, message: 'Update sedang berjalan. Mohon tunggu proses selesai.' };
+      return { started: false, message: 'An update is already running. Please wait for it to finish.' };
     }
 
     this.updateState = {
       status: 'updating',
       log: [
-        `[${new Date().toISOString()}] Memulai pipeline pembaruan Homelab Dashboard...`,
+        `[${new Date().toISOString()}] Starting Homelab Dashboard update pipeline...`,
         'ℹ Memicu out-of-process redeployer via trigger file & background runner...',
       ],
       startedAt: Date.now(),
@@ -487,7 +487,7 @@ export class AppUpdateService {
       this.performUpdate().catch(() => {});
     }
 
-    this.notifications.add('app-update-start', 'Memulai pembaruan Homelab Dashboard...');
+    this.notifications.add('app-update-start', 'Starting Homelab Dashboard update...');
     auditLogService.log('app-update', 'info', 'Dashboard update started', { detail: runnerSpawned ? 'out-of-process runner' : 'in-process update' });
     return { started: true };
   }
@@ -512,14 +512,14 @@ export class AppUpdateService {
         const { stdout: statusOut } = await execFile('git', ['-C', this.repoRoot, 'status', '--porcelain'], EXEC_OPTS);
         if (statusOut.trim()) {
           appendLog('$ git stash');
-          appendLog('ℹ Menemukan perubahan file lokal. Menyimpan sementara via stash...');
+          appendLog('ℹ Found local file changes. Saving them temporarily via stash...');
           await this.spawnCapture('git', ['-C', this.repoRoot, 'stash'], this.repoRoot, appendLog);
         }
       } catch {
         // ignore stash errors
       }
 
-      appendLog(`[1/4] Menarik commit terbaru dari origin/${this.branch}...`);
+      appendLog(`[1/4] Pulling latest commits from origin/${this.branch}...`);
       appendLog(`$ git fetch origin ${this.branch}`);
       await this.spawnCapture('git', ['-C', this.repoRoot, 'fetch', 'origin', this.branch], this.repoRoot, appendLog);
 
@@ -527,7 +527,7 @@ export class AppUpdateService {
       try {
         await this.spawnCapture('git', ['-C', this.repoRoot, 'pull', '--rebase', 'origin', this.branch], this.repoRoot, appendLog);
       } catch {
-        appendLog('ℹ Terdeteksi divergensi commit lokal. Melakukan sinkronisasi bersih ke origin...');
+        appendLog('ℹ Detected diverged local commits. Performing a clean sync to origin...');
         try {
           await this.spawnCapture('git', ['-C', this.repoRoot, 'rebase', '--abort'], this.repoRoot, () => {});
         } catch {}
@@ -538,15 +538,15 @@ export class AppUpdateService {
       const newSha = headOut.trim();
       appendLog(`Checked out HEAD at ${newSha.slice(0, 7)}.`);
 
-      appendLog('[2/4] Memeriksa & menginstall dependensi npm...');
+      appendLog('[2/4] Checking & installing npm dependencies...');
       appendLog('$ npm install --include=dev');
       await this.spawnCapture('npm', ['install', '--include=dev'], this.repoRoot, appendLog);
 
-      appendLog('[3/4] Membangun frontend dan backend (npm run build)...');
+      appendLog('[3/4] Building frontend and backend (npm run build)...');
       appendLog('$ npm run build');
       await this.spawnCapture('npm', ['run', 'build'], this.repoRoot, appendLog);
 
-      appendLog('[4/4] Memperbarui status versi...');
+      appendLog('[4/4] Updating version status...');
       this.currentSha = newSha;
       this.hasUpdate = false;
       this.behindBy = 0;
@@ -554,20 +554,20 @@ export class AppUpdateService {
       // Reload baseline version if version.json updated
       this.loadBaselineVersion();
 
-      appendLog(`✓ Berhasil! Homelab Dashboard kini berjalan di commit ${newSha.slice(0, 7)}.`);
-      appendLog('Aset web telah diperbarui dan siap digunakan.');
+      appendLog(`✓ Success! Homelab Dashboard is now running at commit ${newSha.slice(0, 7)}.`);
+      appendLog('Web assets have been updated and are ready to use.');
 
       this.updateState.status = 'success';
       this.updateState.finishedAt = Date.now();
-      this.notifications.add('app-update-success', `Homelab Dashboard berhasil diupdate ke versi ${newSha.slice(0, 7)}!`);
+      this.notifications.add('app-update-success', `Homelab Dashboard updated successfully to version ${newSha.slice(0, 7)}!`);
       auditLogService.log('app-update', 'info', `Dashboard updated to ${newSha.slice(0, 7)}`);
     } catch (err: any) {
-      const msg = err.message || 'Proses update gagal.';
-      appendLog(`✕ Gagal: ${msg}`);
+      const msg = err.message || 'Update failed.';
+      appendLog(`✕ Failed: ${msg}`);
       this.updateState.status = 'failed';
       this.updateState.message = msg;
       this.updateState.finishedAt = Date.now();
-      this.notifications.add('app-update-failed', `Pembaruan Homelab Dashboard gagal: ${msg}`);
+      this.notifications.add('app-update-failed', `Homelab Dashboard update failed: ${msg}`);
       auditLogService.log('app-update', 'error', 'Dashboard update failed', { detail: msg });
     }
   }

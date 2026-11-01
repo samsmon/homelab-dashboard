@@ -744,7 +744,7 @@ export class GitProjectsService {
       try {
         const { stdout: statusOut } = await this.runExec(record, 'git', ['status', '--porcelain'], cwd);
         if (statusOut.trim()) {
-          appendLog('ℹ Menemukan perubahan lokal pada repositori. Menyimpan backup sementara via git stash...');
+          appendLog('ℹ Found local changes in the repository. Saving a temporary backup via git stash...');
           appendLog('$ git stash push -m "Auto-stashed before pull and redeploy"');
           await this.runCapture(containerName, record, 'git', ['stash', 'push', '-m', 'Auto-stashed before pull and redeploy'], cwd, appendLog);
         }
@@ -771,8 +771,8 @@ export class GitProjectsService {
       // apply there — treat it as a normal remote rebuild instead.
       const isSelf = !record.sshTarget && (containerName === 'homelab-cockpit' || record.repoName === 'homelab-dashboard');
       if (isSelf) {
-        appendLog('ℹ Terdeteksi self-redeploy pada container Homelab Dashboard.');
-        appendLog('ℹ Memicu out-of-process runner agar proses rebuild tidak terputus saat container dimatikan...');
+        appendLog('ℹ Detected a self-redeploy of the Homelab Dashboard container.');
+        appendLog('ℹ Triggering the out-of-process runner so the rebuild is not interrupted when the container is stopped...');
 
         record.lastKnownSha = newSha;
         this.saveDb();
@@ -812,8 +812,8 @@ export class GitProjectsService {
           }
         }
 
-        appendLog('✔ Sinyal redeploy berhasil dikirim ke runner host.');
-        appendLog('⏳ Container akan direstart. Koneksi web akan terputus sesaat lalu terhubung kembali otomatis.');
+        appendLog('✔ Redeploy signal sent to the host runner.');
+        appendLog('⏳ The container will restart. The web connection will drop briefly and then reconnect automatically.');
         state.status = 'rebuilding';
         return { success: true, message: 'Self redeploy triggered out-of-process.', newSha };
       }

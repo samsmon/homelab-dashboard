@@ -71,7 +71,7 @@ Every layout variant (Classic, Beta, or new future variants) must implement or h
   - Automatic Google favicon resolution.
   - Interactive modal for adding, editing, and deleting shortcuts.
   - Drag-and-drop reordering with persistent server-side save (`/api/bookmarks/reorder`).
-  - Actionable Empty State button ("Tambah Shortcut Pertama") when list is empty.
+  - Actionable Empty State button ("Add First Shortcut") when list is empty.
 
 ### E. Layout Shell & Sub-page Hosting
 - [ ] **Outlet Hosting:** `<Outlet />` cleanly mounted for nested child routes.

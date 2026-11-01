@@ -135,9 +135,9 @@ docker system prune -af --volumes
 
 ## 6. Homelab Owner Testimonial
 
-> *"Dulu setiap kali mau troubleshooting homelab, minimal harus buka 4 tab: Portainer buat liat logs, Netdata buat liat CPU throttle, Uptime Kuma buat ngecek service up/down, dan SSH Proxmox buat mastiin kabel DAS ga copot. Belum lagi container monitoring-nya sendiri makan RAM dan bikin CPU mikir terus.*
+> *"Whenever I troubleshot the homelab I used to have to open at least 4 tabs: Portainer for logs, Netdata for CPU throttling, Uptime Kuma to check service up/down, and SSH into Proxmox to make sure the DAS cable hadn't come loose. On top of that, the monitoring containers themselves ate RAM and kept the CPU busy.*
 >
-> *Dengan Homelab Cockpit, 6 container lama langsung gw pensiunkan total. Sekali `docker system prune -af`, 15.27 GB SSD NVMe langsung lega dan RAM LXC sisa 2.2 GB dari 12 GB. Sekarang cukup buka 1 web, semua rute Tailscale IP keliatan jelas, logs bisa langsung diintip, dan aman dibuka dari luar kosan berkat 1x owner auth wall. Benar-benar definisi clean and purposeful engineering."*
+> *With Homelab Cockpit I retired the 6 old containers entirely. One `docker system prune -af` freed up 15.27 GB of NVMe SSD and left the LXC with 2.2 GB of RAM free out of 12 GB. Now I just open one web page, every Tailscale IP route is clearly visible, logs are one click away, and it is safe to open from outside my boarding house thanks to the single owner auth wall. Truly the definition of clean and purposeful engineering."*
 >
 > — **Maja ([@srytmj](https://github.com/srytmj))**, Homelab Architect & Software Engineer
 

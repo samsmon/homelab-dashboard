@@ -285,7 +285,7 @@ export const InfraPage: React.FC<InfraPageProps> = ({ snapshot, isPrivacyMode, o
         ))}
       </div>
 
-      {/* 1. OVERVIEW: Rangkuman Infrastruktur yang Ada */}
+      {/* 1. OVERVIEW: Summary of existing infrastructure */}
       {view === 'overview' && (
         <div className="space-y-4 animate-fade-in">
           {/* Main Node Header Summary */}
@@ -463,7 +463,7 @@ export const InfraPage: React.FC<InfraPageProps> = ({ snapshot, isPrivacyMode, o
                 onClick={() => setView('network')}
                 className="btn-ghost mt-4 w-full justify-between text-[12px]"
               >
-                <span>Lihat Detail Network</span>
+                <span>View Network Details</span>
                 <ArrowRight className="h-3.5 w-3.5" />
               </button>
             </div>
@@ -513,7 +513,7 @@ export const InfraPage: React.FC<InfraPageProps> = ({ snapshot, isPrivacyMode, o
                 onClick={() => setView('storage')}
                 className="btn-ghost mt-4 w-full justify-between text-[12px]"
               >
-                <span>Lihat Detail Storage</span>
+                <span>View Storage Details</span>
                 <ArrowRight className="h-3.5 w-3.5" />
               </button>
             </div>
@@ -561,7 +561,7 @@ export const InfraPage: React.FC<InfraPageProps> = ({ snapshot, isPrivacyMode, o
                 onClick={() => setView('performance')}
                 className="btn-ghost mt-4 w-full justify-between text-[12px]"
               >
-                <span>Lihat Detail Performance</span>
+                <span>View Performance Details</span>
                 <ArrowRight className="h-3.5 w-3.5" />
               </button>
             </div>
@@ -611,7 +611,7 @@ export const InfraPage: React.FC<InfraPageProps> = ({ snapshot, isPrivacyMode, o
                 onClick={() => setView('backup')}
                 className="btn-ghost mt-4 w-full justify-between text-[12px]"
               >
-                <span>Lihat Detail Backup</span>
+                <span>View Backup Details</span>
                 <ArrowRight className="h-3.5 w-3.5" />
               </button>
             </div>
@@ -619,7 +619,7 @@ export const InfraPage: React.FC<InfraPageProps> = ({ snapshot, isPrivacyMode, o
         </div>
       )}
 
-      {/* 2. NETWORK: Tailscale, Docker Hosts, dan SSL Certificates */}
+      {/* 2. NETWORK: Tailscale, Docker Hosts, and SSL Certificates */}
       {view === 'network' && (
         <div className="space-y-4 animate-fade-in">
           <DockerHostsPanel snapshot={snapshot} />

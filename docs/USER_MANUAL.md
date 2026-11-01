@@ -184,7 +184,7 @@ The edit dialog has an **Auto-deploy new commits** checkbox, available once a lo
 ### Out-of-Process Redeployment (`homelab-redeploy.sh`)
 
 When redeploying a container or updating the Homelab Dashboard itself:
-- **Self-Redeploy Safety**: When you trigger an update for `homelab-cockpit` (via the Overview page's **Update Sekarang** or Git projects' **Pull & Redeploy**), the build cannot run purely inside the container because Docker terminates the container during recreation, killing the update process. 
+- **Self-Redeploy Safety**: When you trigger an update for `homelab-cockpit` (via the Overview page's **Update Now** or Git projects' **Pull & Redeploy**), the build cannot run purely inside the container because Docker terminates the container during recreation, killing the update process. 
 - **Out-of-Process Runner**: The dashboard dispatches a trigger to the standalone script at `/root/homelab-redeploy.sh` (or `scripts/homelab-redeploy.sh`). The script stashes local edits, cleans stale locks (`.git/index.lock`), runs `git fetch` and `git reset --hard`, ensures the `homelab-net` Docker network exists, and runs `docker compose up -d --build --force-recreate`.
 - **Graceful Downtime & Auto-Reconnect**:
   - The browser modal tails the live build log from `data/redeploy.log`.
