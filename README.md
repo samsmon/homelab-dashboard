@@ -1,233 +1,293 @@
+<a id="top"></a>
+
+<div align="center">
+
+<img src="docs/screenshots/overview.png" alt="Homelab Dashboard Overview" width="850" />
+
 # Homelab Dashboard
 
-A single-pane dashboard for a compact homelab: Proxmox VE host vitals, Docker container telemetry, Tailscale peers, storage and DAS mount health, SSL expiry, AI coding agent metrics, and an optional Telegram companion bot. One Node.js daemon, one React client, no external monitoring stack.
+### Single-Pane Homelab Cockpit & Real-Time Observer
 
-Built for a Lenovo ThinkCentre M710q Tiny running Proxmox VE with an Ubuntu LXC container runner and an external multi-bay DAS enclosure, but adaptable to any Linux-based homelab environment.
+A lightweight, single-pane dashboard for compact homelabs: Proxmox VE host vitals, Docker container telemetry, Tailscale peers, storage & DAS mount health, SSL expiry, AI coding agent metrics, and an optional Telegram companion bot. One Node.js daemon, one React client, zero external monitoring bloat.
 
-![Homelab Dashboard Overview](docs/screenshots/overview.png)
+[![Node.js](https://img.shields.io/badge/Node.js-20+-339933?style=flat-square&logo=node.js&logoColor=white)](https://nodejs.org/)
+[![Fastify](https://img.shields.io/badge/Fastify-5.x-000000?style=flat-square&logo=fastify&logoColor=white)](https://fastify.dev/)
+[![React](https://img.shields.io/badge/React-18-61DAFB?style=flat-square&logo=react&logoColor=black)](https://react.dev/)
+[![TypeScript](https://img.shields.io/badge/TypeScript-5-3178C6?style=flat-square&logo=typescript&logoColor=white)](https://www.typescriptlang.org/)
+[![Vite](https://img.shields.io/badge/Vite-6-646CFF?style=flat-square&logo=vite&logoColor=white)](https://vitejs.dev/)
+[![Tailwind CSS](https://img.shields.io/badge/Tailwind_CSS-3.x-06B6D4?style=flat-square&logo=tailwind-css&logoColor=white)](https://tailwindcss.com/)
+[![Docker](https://img.shields.io/badge/Docker-Ready-2496ED?style=flat-square&logo=docker&logoColor=white)](https://www.docker.com/)
+[![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg?style=flat-square)](LICENSE)
+
+[Quick Start](#quick-start) · [Architecture](#architecture) · [Key Features](#key-features) · [Redeployment](#out-of-process-redeployment) · [HTTP API](#http-api)
+
+</div>
+
+> Built for homelab owners who want complete visibility across host, containers, tunnels, and storage without burning gigabytes of RAM on heavyweight monitoring stacks.
+
+---
 
 ## Results in Production
 
-Running on an unprivileged Ubuntu 24.04 LXC on the M710q under Proxmox VE 8, replacing a stack of separate monitoring tools:
+Running on an unprivileged Ubuntu 24.04 LXC on a Lenovo ThinkCentre M710q Tiny under Proxmox VE 8, replacing a stack of separate monitoring tools (Netdata, Uptime Kuma, Portainer, and Homelable):
 
-| Metric | Before | After |
-| --- | --- | --- |
-| Monitoring containers | 6 across 4 tools | 1 daemon |
-| LXC memory in use | high baseline pressure | 2.2 GB of 12 GB |
-| NVMe reclaimed | -- | 15.27 GB |
-| Browser tabs to operate | 4 | 1 |
-| Poll loops | 4 independent | 1 multiplexed WebSocket |
+| Metric | Before (Fragmented Stack) | After (Homelab Dashboard) | Impact |
+| :--- | :--- | :--- | :--- |
+| **Monitoring Containers** | 6 containers across 4 tools | **1 daemon container** (`homelab-cockpit`) | **-83.3%** container count |
+| **LXC Memory in Use** | High baseline pressure | **~2.2 GB** of 12 GB allocated | **9.8 GB** headroom freed |
+| **NVMe SSD Storage** | Bloated layers, cache & volumes | Cleaned via safe prune | **15.27 GB** reclaimed |
+| **Browser Tabs Needed** | 4 separate tabs | **1 unified cockpit tab** | **-75%** context switching |
+| **Telemetry Network Traffic** | 4 independent poll loops | **1 multiplexed WebSocket** (2s tick) | Zero polling storm |
 
-Netdata, Uptime Kuma, Portainer, and legacy dashboards were decommissioned. Full write-up in [docs/case-study.md](docs/case-study.md).
+*Read the full production benchmark and hardware breakdown in [docs/case-study.md](docs/case-study.md).*
+
+---
 
 ## Architecture
 
-```text
-Host machine (Proxmox + Ubuntu Runner)
-│
-├── System Sensors (lm-sensors, /proc, docker sock)
-│
-└── Node.js Fastify Daemon (homelab-cockpit server)
-    ├── REST API (authenticated)
-    ├── WebSocket (2-second multiplexed stream)
-    └── Background Workers:
-        ├── System Watchdog (L7 HTTP, Docker stats, NVMe)
-        ├── GitHub commit tracking for tracked projects
-        ├── rclone backup / restore, plus small-config import
-        ├── SSH terminal bridge (no command whitelist)
-        ├── AI agents telemetry (Claude Pro, Gemini / Antigravity)
-        └── optional Telegram bot with Gemini Q&A
-             │
-        React client (Vite + Tailwind + React Router)
-        ├── Overview / Fleet / Infra (Overview, Network, Storage, Performance, Backup) / Git / Processes / Sentinel / AI Agents
-        ├── Ctrl+K command palette
-        └── light and dark theme
+Homelab Dashboard gathers metrics across local kernel interfaces, Proxmox VE hypervisor APIs, and remote SSH targets, feeding a single Fastify daemon that pushes updates over an authenticated 2-second WebSocket stream.
+
+```mermaid
+flowchart TD
+    subgraph Sensors["Host & Hypervisor Sensors"]
+        HostKernel["lm-sensors & /proc/diskstats"]
+        DockerSock["/var/run/docker.sock"]
+        ProxmoxAPI["Proxmox VE REST API"]
+        SSHTargets["SSH Targets (Processes & Git)"]
+    end
+
+    subgraph Backend["Fastify Daemon (homelab-cockpit)"]
+        REST["REST API (Bearer Token Auth)"]
+        WS["Multiplexed WebSocket (2s broadcast)"]
+        Watchdogs["Watchdogs: Canary Check, Git Diff, NPM SSL, AI Telemetry"]
+    end
+
+    subgraph Consumers["User Interfaces & Bots"]
+        ReactSPA["React 18 SPA (Vite + Tailwind)<br>• Ctrl+K Command Palette<br>• xterm.js Web Terminal<br>• On-Demand Live Usage Monitor"]
+        TelegramBot["Sentinel Companion Bot<br>(Telegram + Gemini AI Q&A)"]
+    end
+
+    HostKernel --> Backend
+    DockerSock --> Backend
+    ProxmoxAPI --> Backend
+    SSHTargets --> Backend
+
+    REST --> ReactSPA
+    WS --> ReactSPA
+    Backend --> TelegramBot
 ```
 
-## Features
+---
 
-**Owner authentication.** The first visit prompts to register a single owner account, after which registration closes permanently. Every `/api` route and the WebSocket require a bearer token; sessions can persist up to 30 days. Health and authentication status endpoints remain public.
+## Key Features
 
-**Host vitals.** Proxmox CPU, memory, package temperature, and uptime; LXC CPU, memory, and load average; fan speed and kernel throttle counters; vzdump backup status, archive size, and duration.
+<table>
+<tr>
+<td width="50%" valign="top">
 
-**Container fleet & live usage monitor.** Container management with host cards, search, status filters, and pagination. To keep background CPU overhead near zero on constrained homelab hosts, live container CPU & RAM telemetry is gathered on-demand via the **Live Usage Monitor** toggle button with an active 5-minute auto-stop countdown and automatic cessation whenever navigating away to another page. L7 HTTP probes report real status codes and latency. Web UI launcher supports LAN, Tailscale, or public tunnel URLs.
+### 🖥️ Fleet & Host Telemetry
 
-**Multiple Docker hosts.** Point the daemon at multiple Docker daemons (via `DOCKER_HOSTS`) to aggregate containers into a unified fleet table, tagged and filterable by host. Host-level CPU and RAM telemetry remains scoped to the primary host running the daemon.
+- **Host & Hypervisor Vitals**: Proxmox VE CPU, RAM, package thermals, fan speed, throttling counters, and vzdump backup status.
+- **Container Fleet & Live Monitor**: Search, filter, and inspect containers. Includes an on-demand 5-minute auto-stopping live CPU/RAM monitor to minimize idle CPU cycles.
+- **Multi-Docker Host Aggregation**: Aggregate multiple Docker daemons via `DOCKER_HOSTS` into a single searchable inventory.
+- **Storage & DAS Watchdog**: Per-volume disk metrics with a canary file check (`.mounted`) on external enclosures to alert immediately if a drive disconnects.
+- **5 Infra Operational Domains**: Dedicated sub-views for Overview, Network, Storage, Performance, and Backup.
+- **Process Inspector**: Granular process inspection across primary host, container top processes (`docker top`), and remote nodes via read-only SSH.
 
-**Storage and DAS watchdog.** Disk usage tracking per volume along with a canary file check (`.mounted`) on external enclosures. If an external drive disconnects, an alert banner appears immediately to prevent containers from overflowing the root NVMe drive.
+</td>
+<td width="50%" valign="top">
 
-**Infrastructure categories (5 domains).** Infra page organized into five operational categories:
-- **Overview:** System specifications, compute & RAM progress, network & storage KPIs, and domain jump cards.
-- **Network:** Docker daemon hosts, full Tailscale mesh peer table, and SSL certificate expiration countdown.
-- **Storage:** NVMe & external DAS volumes with canary watchdog (`.mounted`), SMART indicators, and Docker disk hygiene prune.
-- **Performance:** Proxmox hypervisor & Docker runner vitals, kernel throttling counters, and real-time disk I/O throughput and latency via `/proc/diskstats`.
-- **Backup:** Remote cloud backup status via Rclone, on-demand execution, restore confirmation modal, and portable config link importer.
+### ⚡ Operations, Deployment & Bot
 
-**Processes.** Multi-tab system inspection covering host processes, Docker container processes (via `docker top`), and remote hosts via read-only SSH execution.
+- **Tailscale Mesh Peer Table**: Live peer presence, `100.x` Tailscale IPs, MagicDNS names, subnet routes, and exit node status.
+- **SSL Certificate Tracker**: Proactive expiration countdown for Nginx Proxy Manager / Let's Encrypt certificates (30d and 14d alerts).
+- **Disk Hygiene & Safe Prune**: Detect reclaimable dangling Docker layers and build cache with one-click safe pruning.
+- **Git Projects Deployment**: Track source-built containers against GitHub repos, inspect commit diffs for migration risks, and trigger rebuilds.
+- **Cloudflare Tunnel Manager**: Inspect remote tunnels, map domains to origins, and edit public hostnames and DNS records in one place.
+- **AI Coding Agents Monitor**: Rolling 5-hour quota windows, cooldown timers, and weekly charts for Claude and Gemini/Antigravity.
+- **Integrated Browser Terminal**: Interactive `xterm.js` terminal connecting to host nodes via configured SSH keys.
+- **Sentinel Companion Bot**: Optional Telegram companion for mobile alerts and conversational Q&A via Google Gemini.
 
-**Shortcuts & bookmarks.** Customizable startpage bookmarks grid on the Overview page with custom titles, URLs, and drag-and-drop reordering.
+</td>
+</tr>
+</table>
 
-**Notifications.** Centralized notification dropdown logging container events, git project tracking, automated pull & rebuilds, and system alerts. Supports opt-in browser desktop notifications.
+---
 
-**Tailscale mesh.** Real-time peer list with online status, `100.x` IP addresses, MagicDNS hostnames, exit nodes, and subnet routes.
+## Tech Stack
 
-**SSL certificate tracker.** Expiration countdown for Let's Encrypt certificates provisioned through Nginx Proxy Manager, highlighting certificates expiring within 30 and 14 days.
+| Layer | Technology |
+| :--- | :--- |
+| **Daemon & Server** | Node.js 20+ LTS, Fastify 5, TypeScript 5, `@fastify/websocket`, `ssh2` |
+| **Client Frontend** | React 18, Vite 6, Tailwind CSS v3, Lucide React, `xterm.js` |
+| **Containerization** | Docker, Docker Compose, Multi-stage alpine build |
+| **Telemetry & Sensors** | Proxmox VE REST API, `/proc/diskstats`, `lm-sensors`, Docker Engine API |
+| **Mesh & Network** | Tailscale Local API, Cloudflare API, Nginx Proxy Manager SQLite/MySQL |
+| **AI Companion** | Google Gemini API (gemini-2.5-flash / gemini-1.5-pro), `node-telegram-bot-api` |
 
-**Disk hygiene.** Detection of reclaimable disk space across dangling Docker images and build cache, paired with a safe prune action. Running containers and named volumes are protected.
-
-**Backup, restore, and config import.** Scheduled or on-demand disaster recovery using `rclone sync` to configured cloud storage (Nextcloud, Google Drive, etc.). Also supports importing lightweight configs (`pins.json`, `git-projects.json`) directly from public links or archives without modifying owner credentials.
-
-**Git repositories on the servers.** Finds the git repositories on every SSH target and shows what is really checked out there (branch, commit, changed files, whether the remote moved on), read-only.
-
-**Git project deployment.** Track containers built from source against GitHub repositories. Check for incoming commits, inspect diffs for potential database migration risks, and trigger automated pull and rebuild commands (`docker compose up -d --build`).
-
-**Pinned containers & public tunnels.** Pin key containers with custom public domains (e.g. Cloudflare tunnels), persisted across client sessions in `data/pins.json`.
-
-**Cloudflare tunnel manager.** Discovers every remotely-managed tunnel and domain on a Cloudflare account, draws a domain, tunnel and origin map, and publishes, edits, moves or removes public hostnames (tunnel rule plus DNS record) from one page. Needs an API token; see `.env.example`.
-
-**AI Agents monitoring.** Live telemetry tracking AI coding assistants (Claude Pro, Gemini / Antigravity via T3 Code), including 5-hour rolling token windows, cooldown counters, and weekly activity distribution charts.
-
-**In-app self-update.** Direct version check against the GitHub repository with one-click background update and auto-reload capabilities.
-
-**Terminal.** Integrated interactive terminal in the browser using xterm.js connecting via SSH key authentication to Proxmox VE or Docker hosts defined in `SSH_TARGETS`.
-
-**Sentinel companion (optional).** Embedded Telegram bot offering multi-tier homelab management: read-only telemetry, Gemini-powered query assistant, and whitelisted container restarts/prunes with confirmation safeguards.
-
-**Privacy mode & kiosk mode.** Quickly redact IP addresses and internal domains with one click before taking screenshots or sharing views; fullscreen kiosk mode suited for homelab wall monitors.
+---
 
 ## Quick Start
 
+### Prerequisites
+- Node.js 20+ LTS (for local development)
+- Docker Engine & Docker Compose v2
+
+### Sequential Setup
+
 ```bash
+# 1. Clone repository
 git clone https://github.com/srytmj/homelab-dashboard.git
 cd homelab-dashboard
+
+# 2. Configure environment
 cp .env.example .env
+
+# 3. Install dependencies & build
 npm install
 docker compose up -d --build
 ```
 
-The dashboard will be available at `http://<docker-host>:8050`.
+The cockpit dashboard will be live at `http://<docker-host>:8050`.
 
-Without a configured `.env`, the daemon starts in demo mode with simulated telemetry, ideal for local testing and development.
+> **Note:** Without a configured `.env`, the daemon starts in **demo mode** with simulated telemetry, perfect for UI preview and local development.
 
-### Setup Checklist
+### Key Environment Checklist (`.env`)
 
-- **`STORAGE_MOUNTS`**: Must be existing paths on the machine hosting the daemon. Non-existent paths fall back to simulated values.
-- **`STORAGE_LABELS`**: Optional comma-separated display names matching the order of `STORAGE_MOUNTS`.
-- **`DOCKER_SOCKET` / `DOCKER_HOST_NAME`**: Match the environment where the daemon executes. Set `DOCKER_HOSTS` only if aggregating multiple Docker nodes.
-- **`PROXMOX_URL`, `PROXMOX_TOKEN_ID`, `PROXMOX_TOKEN_SECRET`**: Required for live Proxmox hypervisor metrics. Without them, the dashboard displays demo data with a `SIMULATED` indicator.
-- **Container Public Domains**: Provide complete URLs (e.g., `https://jellyfin.yourdomain.com`) when pinning services exposed through reverse proxies or tunnels.
+- `STORAGE_MOUNTS`: Comma-separated paths on the daemon host (e.g., `/,/mnt/das`).
+- `STORAGE_LABELS`: Optional human-readable labels matching `STORAGE_MOUNTS`.
+- `DOCKER_SOCKET`: Path to Docker socket (default `/var/run/docker.sock`).
+- `PROXMOX_URL`, `PROXMOX_TOKEN_ID`, `PROXMOX_TOKEN_SECRET`: PVE credentials for hypervisor metrics.
+- `DOCKER_HOSTS`: Optional remote Docker endpoints for multi-host aggregation.
+- `SSH_TARGETS`: Remote SSH host configs for process inspection and terminal sessions.
 
-## Local Development
-
-```bash
-npm install          # Install dependencies and git hooks
-npm run dev:server   # Run Fastify daemon with tsx watch on :3000
-npm run dev:client   # Run Vite development server on :5173
-```
-
-To create a production build:
+### Local Development Commands
 
 ```bash
-npm run build        # Builds both client (Vite) and server (TypeScript)
-npm start            # Serves production client directly from the Fastify server
+npm run dev:server   # Start Fastify daemon with tsx watch on :3000
+npm run dev:client   # Start Vite dev server on :5173
+npm run build        # Build both client (Vite) and server (TypeScript)
+npm start            # Run production Fastify server on :3000
 ```
 
-Commit messages follow [conventional commits](https://www.conventionalcommits.org) enforced through husky and commitlint.
+---
 
-## Out-of-Process Redeployment (`homelab-redeploy.sh`)
+## Out-of-Process Redeployment
 
-Homelab Dashboard ships with a standalone host redeployer script located at [`scripts/homelab-redeploy.sh`](scripts/homelab-redeploy.sh) and placed at `/root/homelab-redeploy.sh`.
+Homelab Dashboard includes an out-of-process redeployment workflow via [`scripts/homelab-redeploy.sh`](scripts/homelab-redeploy.sh).
 
 ### Why Out-of-Process?
-When updating the dashboard itself via the web interface, executing `docker compose up -d --build` from inside the `homelab-cockpit` container causes Docker to terminate the running container. This kills the Node.js process mid-execution (`SIGTERM`), cutting live feeds and preventing the new container state from being finalized. 
+Executing `docker compose up -d --build` from *inside* the running container causes Docker to terminate the container process tree (`SIGTERM`). This aborts the rebuild mid-execution and cuts network feeds. The host script runs independently to ensure safe state transitions:
+1. Stashes uncommitted tracked edits (`git stash push`).
+2. Clears stale git index locks (`rm -f .git/index.lock`).
+3. Fetches and syncs the target branch (`git reset --hard origin/<branch>`).
+4. Rebuilds and recreates containers: `docker compose up -d --build --force-recreate`.
+5. Logs progress to `data/redeploy.log` and updates `data/redeploy-status.json`.
 
-The standalone script runs on the host completely outside the container's process tree. It features:
-- Automatic stashing of uncommitted tracked edits (`git stash push`).
-- Stale lock removal (`rm -f .git/index.lock`).
-- Clean branch synchronization (`git fetch origin <branch>` and `git reset --hard origin/<branch>`).
-- Auto-creation of external Docker networks (e.g. `homelab-net`) if missing.
-- Safe Docker container rebuild: `docker compose up -d --build --force-recreate`.
-- Persistent logging to `data/redeploy.log` and status updates to `data/redeploy-status.json`.
-
-### Manual CLI Execution
-Users and AI agents can execute redeployments directly from the host terminal:
-
+### CLI Manual Execution
 ```bash
-# Redeploy Homelab Dashboard itself:
+# Redeploy Homelab Dashboard itself
 bash /root/homelab-redeploy.sh
 # or from the repository root:
 npm run redeploy
 
-# Redeploy any tracked Git project (e.g., homelab-idp):
+# Redeploy any tracked Git project (e.g., homelab-idp)
 bash /root/homelab-redeploy.sh homelab-idp
 ```
 
-### Background Watcher Daemon (`--watch`)
-To allow Web UI buttons (**Update Sekarang** and **Pull & Redeploy**) to trigger instantaneous out-of-process rebuilds on the host:
+### Background Watcher Daemon & Systemd
+To allow Web UI one-click updates (**Update Sekarang** & **Pull & Redeploy**):
 
 ```bash
 # Run watcher as a background daemon:
 nohup /root/homelab-redeploy.sh --watch > data/redeploy-daemon.log 2>&1 &
 
-# Or register as a systemd service (recommended for production host):
-cp scripts/homelab-redeploy.service /etc/systemd/system/
-systemctl daemon-reload
-systemctl enable --now homelab-redeploy
+# Or install as a systemd service (recommended):
+sudo cp scripts/homelab-redeploy.service /etc/systemd/system/
+sudo systemctl daemon-reload
+sudo systemctl enable --now homelab-redeploy
 ```
 
-### Seamless Downtime & Auto-Reconnect
-During self-redeploy, the dashboard web UI tails `data/redeploy.log`. When the container stops and restarts during recreate, the frontend enters a transitional **"Service Restarting"** state, polls `/api/health` every 1.5 seconds, and automatically reloads the page once the new container responds with 200 OK.
+*During self-redeploy, the React frontend displays a **"Service Restarting"** banner, polls `/api/health` every 1.5s, and seamlessly reconnects once the new container responds.*
+
+---
+
+## Troubleshooting
+
+- **Container Terminated Mid-Redeploy**: If a rebuild was triggered inside the container instead of out-of-process, execute `bash scripts/homelab-redeploy.sh` directly on the host shell to clear stale locks and recover.
+- **Proxmox Metrics Show `SIMULATED`**: Verify that `PROXMOX_URL` is reachable from the container, and that your API token has `PVEAuditor` permissions.
+- **Emergency Access Reset**: If the owner token is lost, inspect or reset `data/auth.json` on the host volume, or check daemon startup output via `docker logs homelab-cockpit`.
+
+---
 
 ## HTTP API
 
-All endpoints except `/api/health` and `/api/auth/*` require authentication via `Authorization: Bearer <token>`. The WebSocket accepts the token via query parameter (`/ws?token=<token>`).
+All endpoints except `/api/health` and `/api/auth/*` require authentication via `Authorization: Bearer <token>`. The WebSocket endpoint accepts the token via query parameter (`/ws?token=<token>`).
 
 | Method | Path | Purpose |
-| --- | --- | --- |
-| GET | `/api/health` | Liveness check |
-| GET | `/api/auth/status` | Verify owner existence and token validity |
-| POST | `/api/auth/register` | Initialize owner credentials (one-time) |
-| POST | `/api/auth/login` | Authenticate and obtain session token |
-| POST | `/api/auth/logout` | Terminate session token |
-| GET | `/api/snapshot` | Homelab telemetry snapshot |
-| GET | `/api/tailscale` | Tailscale mesh status and peers |
-| GET | `/api/ssl` | SSL certificate expiry data |
-| GET | `/api/sentinel` | Telegram companion status |
-| GET | `/api/containers/:id/logs?tail=100` | Fetch container stdout/stderr logs |
-| POST | `/api/containers/:id/restart` | Trigger container restart |
-| POST | `/api/docker/prune` | Safe prune of dangling layers and build cache |
-| POST | `/api/pins/:name` | Pin container with optional public domain |
-| DELETE | `/api/pins/:name` | Remove container pin |
-| GET | `/api/bookmarks` | Fetch custom startpage bookmarks |
-| POST | `/api/bookmarks` | Create bookmark |
-| PUT | `/api/bookmarks/reorder` | Reorder bookmarks array |
-| PUT | `/api/bookmarks/:id` | Update bookmark |
-| DELETE | `/api/bookmarks/:id` | Remove bookmark |
-| POST | `/api/git-projects/:containerName` | Track Git repository for container |
-| DELETE | `/api/git-projects/:containerName` | Stop tracking Git repository |
-| POST | `/api/git-projects/:containerName/check-pull` | Dry-run git diff checking migration risks |
-| POST | `/api/git-projects/:containerName/pull` | Execute git pull and container rebuild |
-| GET | `/api/ai-agents/telemetry` | AI coding agents quota and usage telemetry |
-| GET | `/api/app-update/status` | Check local vs upstream Git version |
-| POST | `/api/app-update/check` | Fetch upstream Git commit updates |
-| POST | `/api/app-update/update` | Execute automated self-update |
-| GET | `/api/processes` | List primary host processes |
-| GET | `/api/processes/docker` | List running container processes |
-| GET | `/api/processes/remote/:target` | List processes on remote SSH target |
-| GET | `/api/backup/status` | Last backup/restore status and paths |
-| POST | `/api/backup/run` | Trigger immediate rclone backup |
-| POST | `/api/backup/restore` | Restore homelab data from remote target |
-| POST | `/api/backup/import-config` | Import pins and git configs from archive URL |
-| GET | `/api/ssh-targets` | List configured SSH target identifiers |
-| WS | `/ws` | Live snapshot feed broadcast every 2s |
-| WS | `/ws/terminal?target=<name>` | Interactive SSH terminal session |
+| :--- | :--- | :--- |
+| `GET` | `/api/health` | Liveness and health check |
+| `GET` | `/api/auth/status` | Verify owner registration and token validity |
+| `POST` | `/api/auth/register` | Initialize owner credentials (one-time setup) |
+| `POST` | `/api/auth/login` | Authenticate and retrieve bearer token |
+| `POST` | `/api/auth/logout` | Revoke active session token |
+| `GET` | `/api/snapshot` | Full homelab telemetry snapshot |
+| `GET` | `/api/tailscale` | Tailscale mesh status and peer details |
+| `GET` | `/api/ssl` | SSL certificate expiration metadata |
+| `GET` | `/api/sentinel` | Telegram companion bot status |
+| `GET` | `/api/containers/:id/logs?tail=100` | Fetch container stdout/stderr logs |
+| `POST` | `/api/containers/:id/restart` | Request container restart |
+| `POST` | `/api/docker/prune` | Safe prune dangling images and build cache |
+| `POST` | `/api/pins/:name` | Pin container with public tunnel domain |
+| `DELETE` | `/api/pins/:name` | Remove container pin |
+| `GET` | `/api/bookmarks` | Fetch customizable startpage bookmarks |
+| `POST` | `/api/bookmarks` | Add new bookmark |
+| `PUT` | `/api/bookmarks/reorder` | Reorder bookmarks array |
+| `PUT` | `/api/bookmarks/:id` | Update bookmark details |
+| `DELETE` | `/api/bookmarks/:id` | Delete bookmark |
+| `POST` | `/api/git-projects/:name` | Register Git repository for container deployment |
+| `DELETE` | `/api/git-projects/:name` | Unregister Git repository |
+| `POST` | `/api/git-projects/:name/check-pull` | Dry-run git diff checking migration risks |
+| `POST` | `/api/git-projects/:name/pull` | Pull upstream changes and rebuild container |
+| `GET` | `/api/ai-agents/telemetry` | AI agent rolling token limits and usage stats |
+| `GET` | `/api/app-update/status` | Compare local commit against remote upstream |
+| `POST` | `/api/app-update/check` | Fetch upstream commit metadata |
+| `POST` | `/api/app-update/update` | Trigger out-of-process self-update |
+| `GET` | `/api/processes` | List host processes |
+| `GET` | `/api/processes/docker` | List running container processes (`docker top`) |
+| `GET` | `/api/processes/remote/:target` | Read-only process list on remote SSH target |
+| `GET` | `/api/backup/status` | Rclone backup status, paths, and timestamps |
+| `POST` | `/api/backup/run` | Trigger immediate cloud backup |
+| `POST` | `/api/backup/restore` | Restore homelab data from remote target |
+| `POST` | `/api/backup/import-config` | Import pins and git configs from URL |
+| `GET` | `/api/ssh-targets` | List configured SSH targets |
+| `WS` | `/ws` | Live multiplexed telemetry stream (every 2s) |
+| `WS` | `/ws/terminal?target=<name>` | Interactive SSH web terminal stream |
 
-## Documentation
+---
 
-- [User Manual](docs/USER_MANUAL.md) - In-depth guide for interface controls and configuration.
-- [Design System](docs/DESIGN_SYSTEM.md) - Color palette, typography, and component specifications.
-- [CLAUDE.md](CLAUDE.md) - Architecture guidelines and development briefing for AI agents.
+## Known Limits & Backlog
+
+- **Live Usage Monitor**: Live container CPU & RAM telemetry is gathered from the primary host Docker daemon; remote `DOCKER_HOSTS` report basic state.
+- **SSH Web Terminal**: Requires pre-configured private keys on the host running the dashboard daemon.
+- **Multi-Node Canary Checks**: Storage canary checks (`.mounted`) require the target directory to be locally mounted or shared with the dashboard container.
+
+---
+
+## Documentation Index
+
+| Document | Purpose |
+| :--- | :--- |
+| [User Manual](docs/USER_MANUAL.md) | Comprehensive usage guide, settings reference, and keyboard shortcuts |
+| [Design System](docs/DESIGN_SYSTEM.md) | Color palette, typography tokens, layout hierarchy, and UI guidelines |
+| [Production Case Study](docs/case-study.md) | Real-world benchmark on Lenovo ThinkCentre M710q (Netdata/Kuma retirement) |
+| [AI Agent Guidelines (CLAUDE.md)](CLAUDE.md) | Architectural briefings, code styles, and operational rules for agents |
+| [Redeploy Script](scripts/homelab-redeploy.sh) | Out-of-process host updater and systemd service companion |
+
+---
 
 ## License
 
-MIT License.
+This project is licensed under the [MIT License](LICENSE).
+
+<div align="right"><a href="#top">Back to top ↑</a></div>
